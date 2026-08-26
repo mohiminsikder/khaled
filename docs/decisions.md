@@ -62,6 +62,20 @@ For **A0** specifically (backend-only, `includes/Cli.php` + a `Selftest.php` met
 touched) the DOM harness has nothing to exercise regardless — verification for A0 is the remote
 `wp counter selftest` run (the thing A0 adds).
 
+### 2026-08-26 · pos.js line-ending note (not a bug, not reversed)
+
+The A2 commit's diff stat looks alarming (~3000 lines) for a ~30-line change. Cause: `assets/pos.js`
+was the one file in this repo stored with CRLF line endings (verified via `git show <old-commit>:... |
+file -`); every other tracked file (PHP, `deploy.sh`, docs, `tests/pos-dom.mjs`) is already stored LF.
+Editing it through normal tools on this Windows checkout (`core.autocrlf=true`) caused git to store it
+as LF on this commit, same as everything else — a diff was going to touch every line the first time
+this happened no matter which tool made the edit. Verified with `diff` after stripping `\r` from both
+sides: the only real content change is the intended 31 lines. **Not reverting** — this makes the repo
+internally consistent (LF everywhere) rather than reintroducing the one-file outlier, and `deploy.sh`
+already being LF-stored is what keeps it running correctly if this repo is ever cloned onto the Linux
+sandbox its own docs assume (a CRLF-stored shell script frequently breaks there). No `.gitattributes`
+added — not needed now that the one outlier is gone, and speculative infra beyond what actually broke.
+
 ### 2026-08-26 · Verification strategy while the live selftest suite is blocked
 
 Per `docs/BLOCKED.md`, `wp counter selftest` currently cannot complete on peapip.com (production) —
