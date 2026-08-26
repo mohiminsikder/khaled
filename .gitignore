@@ -1,0 +1,10 @@
+# Deploy credentials — never committed.
+.env.deploy
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Local scratch
+node_modules/
+*.log

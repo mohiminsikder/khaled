@@ -69,6 +69,10 @@ Act accordingly:
    otherwise. A check that is genuinely wrong gets its own commit explaining why, not a quiet edit.
 7. **Never skip, disable or delete a failing test**, and never commit with a known regression.
 8. **Push after every commit** so the work survives the container.
+9. **Deploying is `scripts/deploy.sh`** (see `docs/DEPLOY.md`). Never deploy without a passing
+   local suite; after `push`, run `selftest` and roll back on non-zero rather than continuing.
+   Authentication is by SSH key — there is no password path, and a run that prompts has
+   already failed.
 
 
 ### 0.3 What is already true — verified, do not re-derive
