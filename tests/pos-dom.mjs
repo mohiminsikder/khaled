@@ -76,6 +76,30 @@ assert(await p.isHidden('#cntr-no-sale'), 'A2: Enter submits the no-sale modal a
 // from), so the next keyboard shortcut would go nowhere without this.
 await p.click('.cntr-pos-header').catch(() => {}); await p.waitForTimeout(200);
 
+// -- B1: the product tile grid — renders from the fixture catalogue, a
+// category chip filters it, tapping a tile adds a line, and a
+// below-threshold tile (Basmati Rice, fixture low_stock_amount=20 against
+// sellable_qty=18) carries a text marker, not colour alone.
+const tileCount = async () => p.$$eval('.cntr-grid-tile', e => e.length).catch(() => 0);
+assert(7 === (await tileCount()), `B1: the grid renders all 7 fixture products (has ${await tileCount()})`);
+
+const lowStockTile = await p.$$eval(
+  '.cntr-grid-tile',
+  els => els.some(el => el.textContent.includes('Basmati Rice') && el.querySelector('.cntr-grid-tile-lowstock'))
+);
+assert(lowStockTile, 'B1: the below-threshold tile (Basmati Rice) carries the low-stock marker');
+
+await p.click('.cntr-grid-chip:has-text("Rice")'); await p.waitForTimeout(300);
+assert(3 === (await tileCount()), `B1: the "Rice" category chip filters to its 3 products (has ${await tileCount()})`);
+await p.click('.cntr-grid-chip:has-text("All")'); await p.waitForTimeout(300);
+assert(7 === (await tileCount()), `B1: the "All" chip restores every product (has ${await tileCount()})`);
+
+const linesBeforeTileTap = await cart();
+await p.click('.cntr-grid-tile:has-text("Red Lentil")'); await p.waitForTimeout(300);
+assert(linesBeforeTileTap + 1 === (await cart()), 'B1: tapping a tile adds a cart line');
+// Remove it again so the tender demo below still matches its own totals.
+await p.click(`.cntr-cart-remove[data-idx="${linesBeforeTileTap}"]`); await p.waitForTimeout(300);
+
 await p.keyboard.press('F2'); await p.waitForTimeout(500);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(250);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(350);

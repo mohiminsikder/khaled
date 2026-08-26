@@ -63,6 +63,30 @@ class Catalog {
 
 		$entity = Entity::resolve( $product );
 
+		// B1 — the product tile grid's category chips need a human label,
+		// not just the id() get_category_ids() already carried; resolved
+		// here (get_terms() is the cheap, cached path) rather than in
+		// pos.js, which has no taxonomy data of its own to resolve an id
+		// against. Additive: category_ids is untouched for anything already
+		// reading it (Reports.php, Health.php).
+		$category_ids   = $product->get_category_ids();
+		$category_names = [];
+		if ( ! empty( $category_ids ) ) {
+			$terms = get_terms(
+				[
+					'taxonomy'   => 'product_cat',
+					'include'    => $category_ids,
+					'hide_empty' => false,
+					'fields'     => 'id=>name',
+				]
+			);
+			if ( ! is_wp_error( $terms ) ) {
+				foreach ( $category_ids as $cid ) {
+					$category_names[] = (string) ( $terms[ $cid ] ?? '' );
+				}
+			}
+		}
+
 		// D3 — a real manufacturer barcode lives in its own meta field, distinct
 		// from the internal SKU (the normal case for an imported grocery
 		// catalogue); falling back to SKU means a shop that never sets one is
@@ -90,7 +114,14 @@ class Catalog {
 			'sellable_qty' => self::sellable_qty_for( $entity ),
 			'manage_stock' => $entity['managed'],
 			'backorders'   => $entity['backorders'],
-			'category_ids' => $product->get_category_ids(),
+			'category_ids' => $category_ids,
+			'category_names' => $category_names,
+			// B1 — the tile grid's low-stock marker. Same source and same
+			// "empty means don't alert" semantics as Reports::reorder_list()
+			// — WooCommerce's own per-product alert quantity, already
+			// falling back to the store-wide default internally; not a new
+			// field to keep in sync.
+			'low_stock_amount' => $product->get_low_stock_amount(),
 			'image_thumb'  => (string) ( wp_get_attachment_image_url( $product->get_image_id(), 'thumbnail' ) ?: '' ),
 		];
 

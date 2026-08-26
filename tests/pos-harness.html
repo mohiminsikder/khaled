@@ -30,13 +30,13 @@ window.CNTR = {
 // ---- Fixture catalogue. NOTE: catalog payload barcode is always '' in
 //      v0.1.20, so the scannable code is the SKU. Mirrored here. ---------
 const CATALOG = [
-  {id:101,parent_id:0,sku:'8901234567894',barcode:'',name:'Chinigura Rice 5kg',name_bn:'চিনিগুঁড়া চাল ৫কেজি',price:'620.0000',tax_class:'',units:[],sellable_qty:'40.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
-  {id:102,parent_id:0,sku:'8901234567900',barcode:'',name:'Soyabin Oil 1L',name_bn:'সয়াবিন তেল ১লিটার',price:'185.0000',tax_class:'',units:[],sellable_qty:'60.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
-  {id:103,parent_id:0,sku:'8901234567917',barcode:'',name:'Atta 2kg',name_bn:'আটা ২কেজি',price:'145.0000',tax_class:'',units:[],sellable_qty:'25.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
-  {id:104,parent_id:0,sku:'8901234567924',barcode:'',name:'Miniket Rice 25kg',name_bn:'মিনিকেট চাল ২৫কেজি',price:'2450.0000',tax_class:'',units:[],sellable_qty:'12.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
-  {id:105,parent_id:0,sku:'8901234567931',barcode:'',name:'Basmati Rice 1kg',name_bn:'বাসমতি চাল ১কেজি',price:'320.0000',tax_class:'',units:[],sellable_qty:'18.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
-  {id:106,parent_id:0,sku:'8901234567948',barcode:'',name:'Sugar 1kg',name_bn:'চিনি ১কেজি',price:'135.0000',tax_class:'',units:[],sellable_qty:'50.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
-  {id:107,parent_id:0,sku:'8901234567955',barcode:'',name:'Red Lentil 1kg',name_bn:'মসুর ডাল ১কেজি',price:'165.0000',tax_class:'',units:[],sellable_qty:'32.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''}
+  {id:101,parent_id:0,sku:'8901234567894',barcode:'',name:'Chinigura Rice 5kg',name_bn:'চিনিগুঁড়া চাল ৫কেজি',price:'620.0000',tax_class:'',units:[],sellable_qty:'40.0000',manage_stock:true,backorders:'no',category_ids:[12],category_names:['Rice'],low_stock_amount:'',image_thumb:''},
+  {id:102,parent_id:0,sku:'8901234567900',barcode:'',name:'Soyabin Oil 1L',name_bn:'সয়াবিন তেল ১লিটার',price:'185.0000',tax_class:'',units:[],sellable_qty:'60.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''},
+  {id:103,parent_id:0,sku:'8901234567917',barcode:'',name:'Atta 2kg',name_bn:'আটা ২কেজি',price:'145.0000',tax_class:'',units:[],sellable_qty:'25.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''},
+  {id:104,parent_id:0,sku:'8901234567924',barcode:'',name:'Miniket Rice 25kg',name_bn:'মিনিকেট চাল ২৫কেজি',price:'2450.0000',tax_class:'',units:[],sellable_qty:'12.0000',manage_stock:true,backorders:'no',category_ids:[12],category_names:['Rice'],low_stock_amount:'',image_thumb:''},
+  {id:105,parent_id:0,sku:'8901234567931',barcode:'',name:'Basmati Rice 1kg',name_bn:'বাসমতি চাল ১কেজি',price:'320.0000',tax_class:'',units:[],sellable_qty:'18.0000',manage_stock:true,backorders:'no',category_ids:[12],category_names:['Rice'],low_stock_amount:'20',image_thumb:''},
+  {id:106,parent_id:0,sku:'8901234567948',barcode:'',name:'Sugar 1kg',name_bn:'চিনি ১কেজি',price:'135.0000',tax_class:'',units:[],sellable_qty:'50.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''},
+  {id:107,parent_id:0,sku:'8901234567955',barcode:'',name:'Red Lentil 1kg',name_bn:'মসুর ডাল ১কেজি',price:'165.0000',tax_class:'',units:[],sellable_qty:'32.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''}
 ];
 
 const CUSTOMER = {

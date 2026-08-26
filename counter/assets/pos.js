@@ -37,6 +37,9 @@
 			shiftLabel: 'Shift',
 			panelCustomerTitle: 'Customer',
 			panelCartTitle: 'Cart',
+			panelGridTitle: 'Products',
+			gridAllCategories: 'All',
+			lowStockBadge: 'Low stock',
 			walkInPlaceholder: 'Walk-in — F6 to attach a customer',
 			customerOwes: 'Owes',
 			customerLimit: 'Limit',
@@ -678,6 +681,9 @@
 
 	let INDEX = { byBarcode: new Map(), bySku: new Map(), all: [] };
 
+	// B1 — null means "All categories".
+	let gridCategoryFilter = null;
+
 	function buildIndex(rows) {
 		const byBarcode = new Map();
 		const bySku = new Map();
@@ -704,6 +710,40 @@
 			.map((f) => f.trim())
 			.filter(Boolean);
 		return INDEX.all.filter((r) => fields.some((f) => String(r[f] || '').toLowerCase().includes(needle))).slice(0, 20);
+	}
+
+	/**
+	 * B1 — every unique (id, name) pair across the synced catalogue, in
+	 * first-seen order. Unnamed categories (get_terms() failed, or the id
+	 * has no name for some other reason) are dropped rather than shown as
+	 * a blank chip — an empty chip label filters to nothing useful anyway.
+	 */
+	function gridCategories() {
+		const seen = new Map();
+		INDEX.all.forEach((r) => {
+			(r.category_ids || []).forEach((id, i) => {
+				const name = (r.category_names || [])[i];
+				if (name && !seen.has(id)) seen.set(id, name);
+			});
+		});
+		return Array.from(seen, ([id, name]) => ({ id, name }));
+	}
+
+	/** Rows for the tile grid, honouring gridCategoryFilter. */
+	function gridProducts() {
+		if (null === gridCategoryFilter) return INDEX.all;
+		return INDEX.all.filter((r) => (r.category_ids || []).includes(gridCategoryFilter));
+	}
+
+	/**
+	 * Same "empty/null means don't alert" semantics as the server's own
+	 * Reports::reorder_list() — a product with no threshold configured
+	 * never carries the marker, at any stock level.
+	 */
+	function isLowStock(row) {
+		const threshold = row.low_stock_amount;
+		if (null === threshold || undefined === threshold || '' === threshold) return false;
+		return parseFloat(row.sellable_qty) <= parseFloat(threshold);
 	}
 
 	/** The one lookup path both the scanner and the search box resolve a code through. */
@@ -2690,6 +2730,32 @@
 								.join('')}
 						</ul>
 					</section>
+					<section class="cntr-panel cntr-panel-grid">
+						<h2 class="cntr-panel-title">${STRINGS.panelGridTitle}</h2>
+						<div class="cntr-grid-chips">
+							<button type="button" class="cntr-grid-chip${null === gridCategoryFilter ? ' cntr-grid-chip-active' : ''}" data-cat="">${STRINGS.gridAllCategories}</button>
+							${gridCategories()
+								.map(
+									(c) =>
+										`<button type="button" class="cntr-grid-chip${c.id === gridCategoryFilter ? ' cntr-grid-chip-active' : ''}" data-cat="${c.id}">${escapeHtml(c.name)}</button>`
+								)
+								.join('')}
+						</div>
+						<div class="cntr-grid-tiles">
+							${gridProducts()
+								.map((r) => {
+									const unit = r.units && r.units[0] ? ' ' + escapeHtml(r.units[0].code || '') : '';
+									return `<button type="button" class="cntr-grid-tile" data-id="${r.id}">
+										<span class="cntr-grid-tile-name">${escapeHtml(r.name || '')}</span>
+										<span class="cntr-grid-tile-sku">${escapeHtml(r.sku || '')}</span>
+										<span class="cntr-grid-tile-price">${formatMoney(r.price)}</span>
+										<span class="cntr-grid-tile-stock">${escapeHtml(String(null != r.sellable_qty ? r.sellable_qty : ''))}${unit}</span>
+										${isLowStock(r) ? `<span class="cntr-grid-tile-lowstock">${STRINGS.lowStockBadge}</span>` : ''}
+									</button>`;
+								})
+								.join('')}
+						</div>
+					</section>
 				</div>
 				${
 					cart.customer.usual_items && cart.customer.usual_items.length
@@ -2781,6 +2847,25 @@
 		});
 		root.querySelectorAll('.cntr-cart-remove').forEach((btn) => {
 			btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.idx, 10)));
+		});
+
+		// B1 — the tile grid: a category chip narrows gridProducts(), a tile
+		// tap adds 1 unit the same way a search-result click does.
+		root.querySelectorAll('.cntr-grid-chip').forEach((btn) => {
+			btn.addEventListener('click', () => {
+				const cat = btn.dataset.cat;
+				gridCategoryFilter = '' === cat ? null : parseInt(cat, 10);
+				render();
+			});
+		});
+		root.querySelectorAll('.cntr-grid-tile').forEach((btn) => {
+			btn.addEventListener('click', () => {
+				// The raw INDEX row, unmodified — same object shape
+				// addHighlightedResult() already hands addToCart() from a
+				// search-result click.
+				const product = INDEX.all.find((r) => r.id === parseInt(btn.dataset.id, 10));
+				if (product) addToCart(product, 1);
+			});
 		});
 
 		const customerClear = document.getElementById('cntr-customer-clear');
