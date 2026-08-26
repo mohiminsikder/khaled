@@ -55,6 +55,15 @@ $bootstrap = [
 		static fn( $u ) => [ 'id' => (int) $u['id'], 'code' => (string) $u['code'], 'name' => (string) $u['name'] ],
 		\Counter\Stock\Units::all( 'active' )
 	),
+	// B2 — the price-group picker's own options. Same shape/reasoning as
+	// units above: a shop's price groups are hand-curated and rarely
+	// change mid-shift, so baked in once rather than a dedicated route.
+	// Which one is ACTIVE for a given sale is a client-side concern
+	// (cart.priceGroupId) — this is only ever the list to choose from.
+	'priceGroups'          => array_map(
+		static fn( $g ) => [ 'id' => (int) $g['id'], 'name' => (string) $g['name'], 'code' => (string) $g['code'] ],
+		\Counter\Pricing\Groups::all( 'active' )
+	),
 	// U2 (COUNTERFRONTEND.md) — "a cashier should be able to run the
 	// terminal entirely in Bengali" (P8.3), never actually possible before
 	// this: pos.js had no translation mechanism at all. Every key here is

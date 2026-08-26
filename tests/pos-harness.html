@@ -24,7 +24,11 @@ window.CNTR = {
     cntr_void_line: true,
     cntr_manage_stock: true,
     cntr_price_override: true
-  }
+  },
+  priceGroups: [
+    { id: 1, name: 'Retail', code: 'retail' },
+    { id: 2, name: 'Wholesale', code: 'wholesale' }
+  ]
 };
 
 // ---- Fixture catalogue. NOTE: catalog payload barcode is always '' in
@@ -61,6 +65,7 @@ window.fetch = async (url, opts = {}) => {
   if (u.match(/\/customers\/\d+\/profile/)) return J(CUSTOMER);
   if (u.includes('/sale')) return J({ order_id: 9001, receipt_no: 'R1-000042-0007', html: '<p>receipt</p>' });
   if (u.includes('/quick-add')) return J({ product_id: 9101 });
+  if (u.match(/\/price-groups\/2\/overrides/)) return J([{ product_id: 101, variation_id: 0, price: '550.0000' }]);
   return J({});
 };
 window.print = () => {};

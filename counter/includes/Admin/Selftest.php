@@ -82,6 +82,9 @@ class Selftest {
 
 	/** cntr_units ids this run created; cleaned up by exact tracked id. */
 	private array $unit_fixture_ids = [];
+
+	/** cntr_price_groups ids this run created (B2); cleaned up by exact tracked id. */
+	private array $price_group_fixture_ids = [];
 	private array $label_fixture_ids = [];
 	private array $doc_template_fixture_ids = [];
 	private array $payment_account_fixture_ids = [];
@@ -130,6 +133,7 @@ class Selftest {
 		$this->po_receive_uuid_options = [];
 		$this->stocktake_fixture_ids = [];
 		$this->unit_fixture_ids = [];
+		$this->price_group_fixture_ids = [];
 		$this->label_fixture_ids = [];
 		$this->doc_template_fixture_ids = [];
 		$this->payment_account_fixture_ids = [];
@@ -199,6 +203,7 @@ class Selftest {
 		$this->test_online_channel();
 		$this->test_fulfilment();
 		$this->test_price_groups();
+		$this->test_price_group_at_till();
 		$this->test_payment_accounts();
 		$this->test_rollup();
 		$this->test_reports_channel();
@@ -6291,6 +6296,150 @@ class Selftest {
 		);
 	}
 
+	// -- B2: test_price_group_at_till() -- 5 checks ------------------------------
+
+	/**
+	 * B2's own five checks. test_price_groups() above already covers
+	 * Groups.php's core logic in depth (fallback, override, catalogue
+	 * rev-bump, the storefront filter, sale-price precedence) — this
+	 * targets the NEW till-facing surface B2 adds: the /price-groups list
+	 * and /price-groups/{id}/overrides routes the manual picker calls, the
+	 * online-filter-suppression case test_price_groups doesn't specifically
+	 * exercise, D1(b)'s customer link, and the order-level record of which
+	 * group actually applied.
+	 */
+	private function test_price_group_at_till(): void {
+		$groups_class = \Counter\Pricing\Groups::class;
+		$wholesale    = $groups_class::get_by_code( 'wholesale' );
+		$online       = $groups_class::get_by_code( 'online' );
+		$wholesale_id = (int) ( $wholesale['id'] ?? 0 );
+		$online_id    = (int) ( $online['id'] ?? 0 );
+		$main_id      = \Counter\Stock\Locations::default_id();
+
+		$original_user_id_pgt = get_current_user_id();
+		$admins_pgt            = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_pgt ) ) {
+			wp_set_current_user( (int) $admins_pgt[0] );
+		}
+
+		// 1. The picker lists active groups — a real GET /price-groups
+		// request, not a direct Groups::all() call, so the route itself
+		// (permission callback included) is what's proven, not just the
+		// model behind it.
+		$deactivated_group = $groups_class::create(
+			[ 'name' => 'Counter Selftest Fixture Inactive Group', 'code' => 'cntr-selftest-inactive-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'inactive' ]
+		);
+		if ( ! is_wp_error( $deactivated_group ) ) {
+			$this->price_group_fixture_ids[] = (int) $deactivated_group['id'];
+		}
+		$req_list = new \WP_REST_Request( 'GET', '/counter/v1/price-groups' );
+		$list     = rest_do_request( $req_list )->get_data();
+		$list_ids = array_column( (array) $list, 'id' );
+		$this->check(
+			'test_price_group_at_till: the picker lists active groups',
+			in_array( $wholesale_id, $list_ids, true )
+				&& ( ! is_wp_error( $deactivated_group ) && ! in_array( (int) $deactivated_group['id'], $list_ids, true ) ),
+			wp_json_encode( [ 'list' => $list_ids, 'inactive' => $deactivated_group ] )
+		);
+
+		// 2. Switching re-prices every line — the data source the picker's
+		// own re-pricing draws from: /price-groups/{id}/overrides returns
+		// exactly the group's own override rows, by group id directly (no
+		// customer in the middle), which is what lets pos.js apply the same
+		// re-pricing to every line already in the cart on a manual pick.
+		$product_pgt = new \WC_Product_Simple();
+		$product_pgt->set_name( 'Counter Selftest Fixture Picker Product' );
+		$product_pgt->set_regular_price( '40.00' );
+		$product_pgt->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product_pgt->save();
+		$product_pgt_id               = $product_pgt->get_id();
+		$this->product_fixture_ids[]  = $product_pgt_id;
+		$groups_class::set_price( $wholesale_id, $product_pgt_id, 0, '30.00' );
+
+		$req_overrides = new \WP_REST_Request( 'GET', '/counter/v1/price-groups/' . $wholesale_id . '/overrides' );
+		$overrides     = rest_do_request( $req_overrides )->get_data();
+		$override_row  = current( array_filter( (array) $overrides, static fn( $r ) => $product_pgt_id === (int) $r['product_id'] ) );
+		$this->check(
+			'test_price_group_at_till: switching re-prices every line — the picker\'s own override source returns the new price',
+			$override_row && 0 === bccomp( (string) $override_row['price'], '30.0000', 4 ),
+			wp_json_encode( $override_row ?: null )
+		);
+
+		// 3. A group with no override falls back to the WooCommerce price
+		// WITH the online filter suppressed — an online override exists for
+		// this exact product, and must NOT leak into a plain (non-online)
+		// group's fallback price at the till.
+		$groups_class::set_price( $online_id, $product_pgt_id, 0, '99.00' );
+		$till_register = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Price Group Till Register', 'location_id' => $main_id, 'prefix' => 'ZQ' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->register_fixture_ids[] = $till_register;
+		$fallback_price = $groups_class::price_at_register( $till_register, $product_pgt_id, 0 );
+		$this->check(
+			'test_price_group_at_till: a group with no override falls back to the WooCommerce price with the online filter suppressed',
+			0 === bccomp( $fallback_price, '40.0000', 4 ),
+			"price={$fallback_price} (99.0000 would mean the online override leaked in)"
+		);
+
+		// 4. D1(b) — attaching a customer selects their group.
+		$customer_pgt_id = wc_create_new_customer( 'cntr-selftest-pgt-' . wp_generate_password( 8, false ) . '@example.invalid', '', wp_generate_password( 16 ) );
+		if ( ! is_wp_error( $customer_pgt_id ) ) {
+			$this->customer_fixture_ids[] = $customer_pgt_id;
+			update_user_meta( $customer_pgt_id, '_cntr_price_group_id', $wholesale_id );
+		}
+		$this->check(
+			'test_price_group_at_till: attaching a customer selects their own group',
+			! is_wp_error( $customer_pgt_id ) && $wholesale_id === $groups_class::group_for_customer( $customer_pgt_id ),
+			is_wp_error( $customer_pgt_id ) ? $customer_pgt_id->get_error_message() : 'group=' . $groups_class::group_for_customer( $customer_pgt_id )
+		);
+
+		// 5. A sale records the group used — a real Rest\Sale::process()
+		// call carrying price_group_id, same as the terminal's own
+		// submitSale() body now does; the resulting order carries it as
+		// _cntr_price_group_id meta.
+		$register_id_5 = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Price Group Sale Register', 'location_id' => $main_id, 'prefix' => 'ZR' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->register_fixture_ids[] = $register_id_5;
+		$shift_id_5 = \Counter\Pos\Shifts::open( $register_id_5, get_current_user_id(), '0.00' );
+
+		$product_5 = new \WC_Product_Simple();
+		$product_5->set_name( 'Counter Selftest Fixture Price Group Sale Product' );
+		$product_5->set_regular_price( '30.00' );
+		$product_5->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product_5->save();
+		$product_5_id                 = $product_5->get_id();
+		$this->product_fixture_ids[]  = $product_5_id;
+
+		$uuid_5   = wp_generate_uuid4();
+		$this->sale_queue_uuids[] = $uuid_5;
+		$body_5   = [
+			'lines'           => [ [ 'product_id' => $product_5_id, 'variation_id' => 0, 'qty' => '1.0000', 'unit_price' => '30.0000', 'discount' => '0.0000' ] ],
+			// 'card', not 'cash' — deliberately independent of whichever
+			// payment accounts a given install has active; this check is
+			// about price_group_id recording, not tender resolution (see
+			// docs/BLOCKED.md's payment-account finding for why 'cash'
+			// specifically cannot be assumed active on peapip.com today).
+			'tenders'         => [ [ 'method' => 'card', 'amount' => '30.0000' ] ],
+			'price_group_id'  => $wholesale_id,
+		];
+		$result_5    = \Counter\Rest\Sale::process( $uuid_5, $register_id_5, $shift_id_5, 'SELFTEST-PGT-5', $body_5 );
+		$data_5      = $result_5 instanceof \WP_REST_Response ? $result_5->get_data() : ( $result_5 instanceof \WP_Error ? [ 'error' => $result_5->get_error_message() ] : $result_5 );
+		$order_id_5  = (int) ( $data_5['order_id'] ?? 0 );
+		if ( $order_id_5 ) {
+			$this->order_fixture_ids[] = $order_id_5;
+		}
+		$order_5          = $order_id_5 ? wc_get_order( $order_id_5 ) : null;
+		$recorded_group_5 = $order_5 ? (int) $order_5->get_meta( '_cntr_price_group_id' ) : null;
+		$this->check(
+			'test_price_group_at_till: a sale records the group used',
+			$order_5 instanceof \WC_Order && $wholesale_id === $recorded_group_5,
+			wp_json_encode( [ 'order_id' => $order_id_5, 'recorded_group' => $recorded_group_5, 'expected' => $wholesale_id, 'result' => $data_5 ] )
+		);
+
+		wp_set_current_user( $original_user_id_pgt );
+	}
+
 	// -- P4.6: test_payment_accounts() -- 6 checks --------------------------------------
 
 	private function test_payment_accounts(): void {
@@ -11178,6 +11327,16 @@ class Selftest {
 				$wpdb->prepare( "DELETE FROM {$units_table_c} WHERE id IN ({$placeholders_units})", ...$this->unit_fixture_ids ) // phpcs:ignore
 			);
 			$this->check( 'cleanup: this run left no fixture units behind', true, "{$removed_units} unit(s) removed" );
+		}
+
+		// cntr_price_groups (B2) — deleted by exact tracked id.
+		if ( ! empty( $this->price_group_fixture_ids ) ) {
+			$price_groups_table_c = Install::table( 'price_groups' );
+			$placeholders_pg      = implode( ',', array_fill( 0, count( $this->price_group_fixture_ids ), '%d' ) );
+			$removed_pg           = (int) $wpdb->query(
+				$wpdb->prepare( "DELETE FROM {$price_groups_table_c} WHERE id IN ({$placeholders_pg})", ...$this->price_group_fixture_ids ) // phpcs:ignore
+			);
+			$this->check( 'cleanup: this run left no fixture price groups behind', true, "{$removed_pg} price group(s) removed" );
 		}
 
 		// cntr_label_templates (P3.2) — deleted by exact tracked id.

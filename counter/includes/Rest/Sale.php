@@ -208,6 +208,10 @@ class Sale {
 					'operator_id' => \Counter\Pos\Pin::current_operator( $register_id ) ?: get_current_user_id(),
 					'customer_id' => $customer_id,
 					'receipt_no'  => $receipt_no,
+					// B2 — whichever group (if any) the till had active when
+					// this sale was rung, straight from the terminal's own
+					// cart.priceGroupId; Builder::build() records it on the order.
+					'price_group_id' => (int) ( $body['price_group_id'] ?? 0 ),
 					// P7.2 — the terminal's own outbox sets this on a sale it
 					// queued while offline and drains later; a sale posted
 					// directly (online, no outbox involved) never sets it.

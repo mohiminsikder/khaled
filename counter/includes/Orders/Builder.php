@@ -120,6 +120,11 @@ class Builder {
 		$order->update_meta_data( '_cntr_location_id', (int) ( $context['location_id'] ?? Locations::default_id() ) );
 		$order->update_meta_data( '_cntr_operator_id', (int) ( $context['operator_id'] ?? 0 ) );
 		$order->update_meta_data( '_cntr_receipt_no', (string) ( $context['receipt_no'] ?? '' ) );
+		// B2 — which price group (if any) actually applied to this sale, so
+		// a receipt or a later report can say "billed wholesale" rather than
+		// leaving that only inferable from comparing prices by hand. 0 is
+		// the ordinary case — the register's own price, no group involved.
+		$order->update_meta_data( '_cntr_price_group_id', (int) ( $context['price_group_id'] ?? 0 ) );
 		if ( ! empty( $context['offline'] ) ) {
 			$order->update_meta_data( '_cntr_offline', 1 );
 		}

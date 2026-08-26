@@ -38,6 +38,9 @@
 			panelCustomerTitle: 'Customer',
 			panelCartTitle: 'Cart',
 			panelGridTitle: 'Products',
+			priceGroupLabel: 'Prices:',
+			priceGroupRegister: 'Register price',
+			priceGroupActive: 'Cart re-priced for %name%',
 			gridAllCategories: 'All',
 			lowStockBadge: 'Low stock',
 			walkInPlaceholder: 'Walk-in — F6 to attach a customer',
@@ -1008,6 +1011,7 @@
 		customer: emptyCustomer(),
 		heldSales: [],
 		selectedIdx: null, // F1 — the line ↑/↓, per-row qty and Esc act on; defaults to the last line added
+		priceGroupId: 0, // B2 — 0 means the register's own price; set by attach (F4 §2) or the manual picker
 	};
 
 	/** Marks when the CURRENT sale began — its first line on an empty cart —
@@ -1162,6 +1166,7 @@
 			tenders,
 			cart_discount: '0.0000',
 			offline: false,
+			price_group_id: cart.priceGroupId || 0,
 		};
 
 		const postStart = performance.now();
@@ -1198,6 +1203,7 @@
 			}
 			cart.lines = [];
 			cart.customer = emptyCustomer();
+			applyPriceOverrides([], 0); // B2 — the next sale starts at the register's own price
 			render();
 			return { queued: true, uuid, receipt_no: receiptNo };
 		}
@@ -1211,6 +1217,7 @@
 			}
 			cart.lines = [];
 			cart.customer = emptyCustomer();
+			applyPriceOverrides([], 0); // B2 — the next sale starts at the register's own price
 			render();
 		}
 		return receipt;
@@ -1542,13 +1549,18 @@
 
 	async function holdSale() {
 		if (!cart.lines.length) return;
-		const record = { id: uuid4(), lines: cart.lines, customer: cart.customer, heldAt: Date.now() };
+		// B2 — carried along so a resume can restore the picker's own
+		// selection; held lines already carry their own frozen unitPrice
+		// (same as the customer's own group always has), so nothing here
+		// re-prices on resume — matching that existing, unchanged behaviour.
+		const record = { id: uuid4(), lines: cart.lines, customer: cart.customer, priceGroupId: cart.priceGroupId, heldAt: Date.now() };
 		cart.heldSales.push(record);
 		const db = await openDb();
 		await idbHeldPut(db, record);
 		cart.lines = [];
 		cart.customer = emptyCustomer();
 		cart.selectedIdx = null;
+		applyPriceOverrides([], 0); // the next walk-up customer starts at the register's own price
 		render();
 	}
 
@@ -1601,6 +1613,7 @@
 			return { ...l, outOfStock: null !== sellable && sellable < parseFloat(l.qty) };
 		});
 		cart.customer = held.customer;
+		cart.priceGroupId = held.priceGroupId || 0; // display only — held lines keep their own frozen prices, same as customer groups already do on resume
 		cart.selectedIdx = null;
 		closeHeldList();
 		render();
@@ -2264,6 +2277,7 @@
 			cart.lines = [];
 			cart.customer = emptyCustomer();
 			cart.selectedIdx = null;
+			applyPriceOverrides([], 0); // B2 — a voided cart starts over at the register's own price too
 			render();
 		}
 	}
@@ -2527,29 +2541,22 @@
 	 * leaves every line at the register's own price — the common case, one
 	 * cheap no-op fetch skipped entirely.
 	 */
-	async function applyCustomerPriceGroup() {
+	/**
+	 * B2 — sets customerPriceMap from a group's own override rows and
+	 * re-prices every line already in the cart. Shared by the auto-select
+	 * on customer attach (F4 §2, groupId from their own price_group_id)
+	 * and the cashier's own manual pick from the price-group selector —
+	 * one re-pricing path, whichever chose the group. F5 — a supervisor's
+	 * own deliberate price override always wins over an automatic
+	 * group/register price, whether it was set before or after this call;
+	 * see priceOverridden's own declaration.
+	 */
+	function applyPriceOverrides(rows, groupId) {
 		customerPriceMap = new Map();
-		if (!cart.customer.price_group_id) {
-			cart.lines.forEach((l) => { if (!l.priceOverridden) l.unitPrice = registerPriceFor(l); });
-			return;
-		}
-		try {
-			const res = await fetch(`${CFG.restUrl}/customers/${cart.customer.customer_id}/price-overrides`, {
-				headers: { 'X-WP-Nonce': CFG.nonce },
-				credentials: 'same-origin',
-			});
-			const rows = res.ok ? await res.json() : [];
-			(Array.isArray(rows) ? rows : []).forEach((r) => {
-				customerPriceMap.set(overrideKey(r.product_id, r.variation_id), r.price);
-			});
-		} catch (e) {
-			// Network hiccup mid-attach — the register's own prices are still
-			// correct and safe to fall through to; nothing here is a hard
-			// failure of the attach itself.
-		}
-		// F5 — a supervisor's own deliberate price override always wins over
-		// an automatic group/register price, whether it was set before or
-		// after this attach; see priceOverridden's own declaration.
+		cart.priceGroupId = groupId || 0;
+		(Array.isArray(rows) ? rows : []).forEach((r) => {
+			customerPriceMap.set(overrideKey(r.product_id, r.variation_id), r.price);
+		});
 		cart.lines.forEach((l) => {
 			if (l.priceOverridden) return;
 			const override = customerPriceMap.get(overrideKey(l.product.id, l.product.variation_id || 0));
@@ -2557,11 +2564,53 @@
 		});
 	}
 
+	async function applyCustomerPriceGroup() {
+		if (!cart.customer.price_group_id) {
+			applyPriceOverrides([], 0);
+			return;
+		}
+		let rows = [];
+		try {
+			const res = await fetch(`${CFG.restUrl}/customers/${cart.customer.customer_id}/price-overrides`, {
+				headers: { 'X-WP-Nonce': CFG.nonce },
+				credentials: 'same-origin',
+			});
+			rows = res.ok ? await res.json() : [];
+		} catch (e) {
+			// Network hiccup mid-attach — the register's own prices are still
+			// correct and safe to fall through to; nothing here is a hard
+			// failure of the attach itself.
+		}
+		applyPriceOverrides(rows, cart.customer.price_group_id);
+	}
+
+	/** B2 — the picker's own onChange: 0 (the "Register price" option) clears back to no override at all. */
+	async function selectPriceGroup(groupId) {
+		groupId = parseInt(groupId, 10) || 0;
+		if (!groupId) {
+			applyPriceOverrides([], 0);
+			render();
+			return;
+		}
+		let rows = [];
+		try {
+			const res = await fetch(`${CFG.restUrl}/price-groups/${groupId}/overrides`, {
+				headers: { 'X-WP-Nonce': CFG.nonce },
+				credentials: 'same-origin',
+			});
+			rows = res.ok ? await res.json() : [];
+		} catch (e) {
+			// Network hiccup — same fallback as applyCustomerPriceGroup(): the
+			// register's own prices are still correct.
+		}
+		applyPriceOverrides(rows, groupId);
+		render();
+	}
+
 	function clearCustomer() {
 		cart.customer = emptyCustomer(); // the cart itself (cart.lines) is untouched
-		customerPriceMap = new Map();
 		// F4 §2 — a walk-in never keeps a departed customer's pricing; F5 — except a line a supervisor deliberately overrode, which stays exactly as set.
-		cart.lines.forEach((l) => { if (!l.priceOverridden) l.unitPrice = registerPriceFor(l); });
+		applyPriceOverrides([], 0);
 		render();
 	}
 
@@ -2695,6 +2744,21 @@
 				<div class="cntr-pos-main">
 					<section class="cntr-panel cntr-panel-customer">
 						<h2 class="cntr-panel-title">${STRINGS.panelCustomerTitle}</h2>
+						${
+							CFG.priceGroups && CFG.priceGroups.length
+								? `<div class="cntr-price-group-picker">
+									<label for="cntr-price-group">${STRINGS.priceGroupLabel}
+										<select id="cntr-price-group">
+											<option value="0">${STRINGS.priceGroupRegister}</option>
+											${CFG.priceGroups
+												.map((g) => `<option value="${g.id}"${g.id === cart.priceGroupId ? ' selected' : ''}>${escapeHtml(g.name)}</option>`)
+												.join('')}
+										</select>
+									</label>
+									${cart.priceGroupId ? `<span class="cntr-price-group-active">${fmt(STRINGS.priceGroupActive, { name: escapeHtml((CFG.priceGroups.find((g) => g.id === cart.priceGroupId) || {}).name || '') })}</span>` : ''}
+								</div>`
+								: ''
+						}
 						<div class="cntr-customer-strip">
 							${
 								cart.customer.customer_id
@@ -2871,6 +2935,11 @@
 		const customerClear = document.getElementById('cntr-customer-clear');
 		if (customerClear) {
 			customerClear.addEventListener('click', clearCustomer);
+		}
+
+		const priceGroupSelect = document.getElementById('cntr-price-group');
+		if (priceGroupSelect) {
+			priceGroupSelect.addEventListener('change', () => selectPriceGroup(priceGroupSelect.value));
 		}
 
 		root.querySelectorAll('.cntr-usual-item').forEach((btn) => {

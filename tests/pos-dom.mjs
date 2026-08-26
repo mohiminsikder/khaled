@@ -100,6 +100,23 @@ assert(linesBeforeTileTap + 1 === (await cart()), 'B1: tapping a tile adds a car
 // Remove it again so the tender demo below still matches its own totals.
 await p.click(`.cntr-cart-remove[data-idx="${linesBeforeTileTap}"]`); await p.waitForTimeout(300);
 
+// -- B2: the price-group picker — lists active groups, and switching
+// re-prices every matching line in the open cart.
+const groupOptionCount = await p.$$eval('#cntr-price-group option', els => els.length);
+assert(3 === groupOptionCount, `B2: the picker lists active groups plus "Register price" (has ${groupOptionCount} options)`);
+
+const chinigura = () => p.locator('.cntr-cart-line', { hasText: 'Chinigura' }).locator('.cntr-cart-price');
+const priceBefore = (await chinigura().textContent()).trim();
+await p.selectOption('#cntr-price-group', '2'); await p.waitForTimeout(400);
+const priceAfterWholesale = (await chinigura().textContent()).trim();
+assert(priceAfterWholesale.includes('550.00') && priceAfterWholesale !== priceBefore, `B2: switching to Wholesale re-prices the matching line (was "${priceBefore}", now "${priceAfterWholesale}")`);
+assert(await p.textContent('.cntr-price-group-active').then(t => t.includes('Wholesale')).catch(() => false), 'B2: the picker says so — an active-group indicator names it');
+
+// Back to the register price so the tender demo below matches its own totals.
+await p.selectOption('#cntr-price-group', '0'); await p.waitForTimeout(400);
+const priceAfterReset = (await chinigura().textContent()).trim();
+assert(priceAfterReset.includes('620.00'), `B2: switching back to "Register price" restores it (now "${priceAfterReset}")`);
+
 await p.keyboard.press('F2'); await p.waitForTimeout(500);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(250);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(350);

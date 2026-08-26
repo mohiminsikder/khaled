@@ -81,6 +81,39 @@ class Customer {
 			]
 		);
 
+		// B2 — the till's own price-group picker, independent of any
+		// attached customer: a walk-in wholesale buyer with no account still
+		// needs wholesale pricing. Deliberately general (by group id, not by
+		// customer) rather than a second customer-scoped route — price_overrides()
+		// above already delegates to the exact same Groups::overrides_for_group(),
+		// this is that same data reachable without a customer in the middle.
+		register_rest_route(
+			$ns,
+			'/price-groups',
+			[
+				'methods'             => 'GET',
+				'callback'            => [ self::class, 'list_price_groups' ],
+				'permission_callback' => Router::guard_any( [ 'cntr_use_pos', 'cntr_terminal_access' ] ),
+			]
+		);
+
+		register_rest_route(
+			$ns,
+			'/price-groups/(?P<id>\d+)/overrides',
+			[
+				'methods'             => 'GET',
+				'callback'            => [ self::class, 'group_overrides' ],
+				'permission_callback' => Router::guard_any( [ 'cntr_use_pos', 'cntr_terminal_access' ] ),
+				'args'                => [
+					'id' => [
+						'required'          => true,
+						'type'              => 'integer',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && $v > 0,
+					],
+				],
+			]
+		);
+
 		register_rest_route(
 			$ns,
 			'/customers/merge',
@@ -313,6 +346,25 @@ class Customer {
 
 		usort( $usual, static fn( $a, $b ) => $b['times_bought'] <=> $a['times_bought'] );
 		return array_slice( array_values( $usual ), 0, self::USUAL_ITEMS_RESULT_LIMIT );
+	}
+
+	/** B2 — active groups only; a deactivated group is not a choice the till should offer. */
+	public static function list_price_groups( \WP_REST_Request $req ) {
+		return rest_ensure_response(
+			array_map(
+				static fn( $g ) => [ 'id' => (int) $g['id'], 'name' => (string) $g['name'], 'code' => (string) $g['code'] ],
+				Groups::all( 'active' )
+			)
+		);
+	}
+
+	/** B2 — same payload shape price_overrides() above returns, by group id directly. */
+	public static function group_overrides( \WP_REST_Request $req ) {
+		$group_id = (int) $req->get_param( 'id' );
+		if ( ! Groups::get( $group_id ) ) {
+			return new \WP_Error( 'cntr_price_group_not_found', __( 'Price group not found.', 'counter' ), [ 'status' => 404 ] );
+		}
+		return rest_ensure_response( Groups::overrides_for_group( $group_id ) );
 	}
 
 	public static function merge( \WP_REST_Request $req ) {
