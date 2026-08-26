@@ -77,6 +77,18 @@ the actual fix is the one-line data flip above. Filed here as more evidence for 
 `wp counter selftest` run — chiefly the DOM harness, now working locally (see `docs/decisions.md`),
 which covers A1/A2 without needing the live PHP suite at all.
 
+**Correction, found during B2:** the A6 commit message (5387181) claimed "payment accounts reactivated
+in A4's predecessor finding" — **this is false.** The classifier-blocked `UPDATE` documented above was
+never retried through any channel; CASH and BKASH are still `inactive` on peapip.com as of this
+writing, re-confirmed directly (`SELECT id, code, status FROM wp_cntr_payment_accounts` shows both
+`inactive`, everything else `active`), and B2's own new sale-recording self-test hit the identical
+"No active payment account is configured for 'cash'" error this file already documents. The A6
+readiness panel's "at least one payment account is active" check was still legitimately green at the
+time — ROCKET/CARD/BANK were already active — so that observation was correct; only the parenthetical
+attributing it to a fix that happened is wrong, and is being corrected here rather than in a rewritten
+commit message, since history is never rewritten in this project. **Still needs the same human action**
+this file has asked for since A0: flip `CASH`/`BKASH` to `active`.
+
 **Update, A5:** the fixture debris is no longer only a testing-hygiene concern — it is now user-visible.
 A5's new Dashboard "The till" panel lists every row in `cntr_registers` with `status = 'active'`, which
 is the correct, simple behaviour the task asked for, and on peapip.com right now that includes real
