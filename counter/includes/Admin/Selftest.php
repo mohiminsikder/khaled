@@ -503,6 +503,38 @@ class Selftest {
 		Capabilities::grant_all();
 		$cashier_after = get_role( Capabilities::ROLE_CASHIER );
 		$this->check( 'test_caps: re-running grant twice does not drop capabilities', $cashier_after && $cashier_after->has_cap( 'cntr_use_pos' ) );
+
+		// -- A4/D2: credit-sale to Cashier and Supervisor; refund moves to Supervisor only.
+		$supervisor = get_role( Capabilities::ROLE_SUPERVISOR );
+		$this->check(
+			'test_caps: the chosen role (cashier) holds cntr_credit_sale',
+			$cashier && $cashier->has_cap( 'cntr_credit_sale' ) && $supervisor && $supervisor->has_cap( 'cntr_credit_sale' )
+		);
+
+		// A real user, not just the role definition — user_can() exercises
+		// WordPress's actual capability resolution, which is what
+		// Rest\Customer::profile()'s can_credit field (current_user_can()) and
+		// test_customer_profile()'s own check 6 both depend on.
+		$plain_cashier_id = wp_insert_user(
+			[
+				'user_login' => 'cntr_selftest_caps_cashier_' . wp_generate_password( 6, false ),
+				'user_pass'  => wp_generate_password( 20 ),
+				'role'       => Capabilities::ROLE_CASHIER,
+			]
+		);
+		if ( ! is_wp_error( $plain_cashier_id ) ) {
+			$this->employee_user_fixture_ids[] = (int) $plain_cashier_id;
+		}
+		$this->check(
+			'test_caps: a plain cashier\'s can_credit matches the decision (D2: true)',
+			! is_wp_error( $plain_cashier_id ) && true === user_can( $plain_cashier_id, 'cntr_credit_sale' ),
+			is_wp_error( $plain_cashier_id ) ? $plain_cashier_id->get_error_message() : 'user_can=' . wp_json_encode( user_can( $plain_cashier_id, 'cntr_credit_sale' ) )
+		);
+
+		$this->check(
+			'test_caps: refund sits where D2 put it — supervisor only, not cashier',
+			$supervisor && $supervisor->has_cap( 'cntr_refund' ) && $cashier && ! $cashier->has_cap( 'cntr_refund' )
+		);
 	}
 
 	// -- P0.8: test_settings() -- 5 checks ----------------------------------------
@@ -2243,11 +2275,15 @@ class Selftest {
 			wp_json_encode( $data_a )
 		);
 
-		// 6. can_credit is false for a user lacking cntr_credit_sale (still
-		// as the cashier from checks 1-3 above — cntr_cashier never grants it).
+		// 6. A4/D2 — cntr_cashier now carries cntr_credit_sale, so can_credit
+		// is true for the cashier fixture from checks 1-3 above (customer_b
+		// has a real customer_id, satisfying profile()'s other half of the
+		// condition). The outsider fixture below (check 5) still has neither
+		// cntr_use_pos nor cntr_credit_sale, so that half of the matrix
+		// (a role with no till access at all) stays covered.
 		$this->check(
-			'test_customer_profile: can_credit is false for a user lacking cntr_credit_sale',
-			200 === $result_b->get_status() && isset( $data_b['can_credit'] ) && false === $data_b['can_credit'],
+			'test_customer_profile: can_credit is true for a cashier (cntr_credit_sale, A4/D2)',
+			200 === $result_b->get_status() && isset( $data_b['can_credit'] ) && true === $data_b['can_credit'],
 			wp_json_encode( $data_b )
 		);
 

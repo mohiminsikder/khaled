@@ -48,6 +48,19 @@ class Boot {
 			Install::upgrade();
 		}
 
+		// A4 — capability grants are code, not schema, so CNTR_DB_VER doesn't
+		// move for a capability-only change; tracked against CNTR_VERSION
+		// instead. §0.1 rule 4's own promise ("roles only write on activation
+		// and version bump") had no version-bump half actually wired up until
+		// this — grant_all() previously ran only from on_activate(), so a
+		// capability moved between roles (A4 itself: cntr_refund off Cashier)
+		// would silently do nothing on an already-active install until someone
+		// deactivated and reactivated the plugin by hand.
+		if ( get_option( 'cntr_version' ) !== CNTR_VERSION ) {
+			Capabilities::grant_all();
+			update_option( 'cntr_version', CNTR_VERSION );
+		}
+
 		self::boot_modules();
 	}
 
@@ -58,6 +71,7 @@ class Boot {
 		}
 		Install::activate();
 		Capabilities::grant_all();
+		update_option( 'cntr_version', CNTR_VERSION );
 		Reports\Expenses::seed_default_categories();
 
 		// Both rewrite rules are normally registered on 'init', which has

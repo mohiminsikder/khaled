@@ -47,9 +47,16 @@ class Capabilities {
 		];
 	}
 
+	/**
+	 * D2 (COUNTERV2.md §1) — a real cashier could not bill a standing
+	 * customer at all (neither role granted cntr_credit_sale), while
+	 * cntr_refund — the classic shrinkage path every reference POS
+	 * restricts — sat with the cashier instead of the supervisor. Credit at
+	 * the counter is the feature the till was built for; refund moves up.
+	 */
 	private static function cashier_caps(): array {
 		return [
-			'cntr_use_pos', 'cntr_open_shift', 'cntr_close_shift', 'cntr_hold_sale', 'cntr_refund',
+			'cntr_use_pos', 'cntr_open_shift', 'cntr_close_shift', 'cntr_hold_sale', 'cntr_credit_sale',
 		];
 	}
 
@@ -57,7 +64,7 @@ class Capabilities {
 		return array_merge(
 			self::cashier_caps(),
 			[
-				'cntr_discount_line', 'cntr_price_override', 'cntr_void_line', 'cntr_no_sale',
+				'cntr_discount_line', 'cntr_price_override', 'cntr_void_line', 'cntr_no_sale', 'cntr_refund',
 				'cntr_adjust_stock', 'cntr_transfer_stock', 'cntr_close_any_shift',
 			]
 		);
@@ -130,7 +137,16 @@ class Capabilities {
 
 	/**
 	 * Bring an existing role's capability set in line with the current definition
-	 * without touching any capability WordPress core or another plugin granted.
+	 * without touching any capability WordPress core or another plugin granted —
+	 * only the cntr_* capabilities this class itself defines are reconciled, by
+	 * both adding what the current definition wants and removing what it no
+	 * longer does. Without the removal half, a capability moved OFF a role (A4 —
+	 * cntr_refund leaving Cashier) would silently stick on every install that
+	 * already ran an earlier grant_all(), since add_cap() alone can only ever
+	 * grow a role, never shrink one back toward the code's current definition.
+	 * Safe today because this file is the only source of truth for cntr_*
+	 * role grants — there is no admin UI yet (C6) that could have added one
+	 * outside it for this reconciliation to clobber.
 	 * cntr_terminal additionally has 'read' stripped explicitly — a machine
 	 * account on a shop floor must not be able to open wp-admin at all.
 	 */
@@ -139,8 +155,13 @@ class Capabilities {
 		if ( ! $role ) {
 			return;
 		}
-		foreach ( $caps as $cap ) {
-			$role->add_cap( $cap );
+		$wanted = array_flip( $caps );
+		foreach ( self::all_caps() as $cap ) {
+			if ( isset( $wanted[ $cap ] ) ) {
+				$role->add_cap( $cap );
+			} else {
+				$role->remove_cap( $cap );
+			}
 		}
 		if ( self::ROLE_TERMINAL === $role_name ) {
 			$role->remove_cap( 'read' );
