@@ -1,0 +1,144 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+body{height:100vh;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--border);flex:0 0 auto}
+.top .name{font-weight:600;font-size:17px}
+.spacer{flex:1}
+.shiftbar{display:flex;align-items:center;gap:18px;font-size:12.5px;color:var(--muted)}
+.shiftbar b{color:var(--text);font-weight:600}
+.btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+.btn-acc{background:var(--accent);border-color:var(--accent);color:#fff}
+.main{flex:1;display:grid;grid-template-columns:270px 1fr 380px;gap:12px;padding:12px;min-height:0}
+.col{display:flex;flex-direction:column;gap:12px;min-height:0}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:9px;display:flex;flex-direction:column;min-height:0}
+.card h3{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);padding:11px 14px;border-bottom:1px solid var(--border);font-weight:600}
+.cbody{padding:13px 14px;overflow:auto}
+/* customer */
+.cust-name{font-size:17px;font-weight:650;margin-bottom:2px}
+.cust-ph{font-size:12.5px;color:var(--muted);margin-bottom:11px}
+.kv{display:flex;justify-content:space-between;font-size:13px;padding:3px 0}
+.kv span:first-child{color:var(--muted)}
+.avail{color:#5cc47f;font-weight:650}
+.due{color:var(--danger);font-size:12.5px;margin-top:7px}
+/* grid */
+.cats{display:flex;gap:6px;padding:9px 12px;border-bottom:1px solid var(--border);flex-wrap:wrap;flex:0 0 auto}
+.cat{font-size:12px;padding:5px 11px;border-radius:999px;background:var(--panel2);border:1px solid var(--border);color:var(--muted);cursor:pointer}
+.cat.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;padding:12px;overflow:auto}
+.tile{background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:11px 10px;display:flex;flex-direction:column;gap:5px;cursor:pointer;min-height:86px}
+.tile:hover{border-color:var(--accent)}
+.tile .tn{font-size:13px;line-height:1.3;font-weight:500}
+.tile .tp{font-size:14.5px;font-weight:700;margin-top:auto}
+.tile .ts{font-size:11px;color:var(--muted)}
+.tile.low .ts{color:var(--warn)}
+/* cart */
+.line{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:13.5px}
+.line .ln{line-height:1.3}
+.line .lm{font-size:11.5px;color:var(--muted)}
+.line .lt{font-weight:650;font-size:14px}
+.qty{display:flex;align-items:center;gap:5px}
+.qb{width:23px;height:23px;border-radius:5px;background:var(--panel2);border:1px solid var(--border);color:var(--text);font-size:13px;line-height:1;cursor:pointer}
+.disc{color:var(--warn);font-size:11.5px}
+.totals{border-top:1px solid var(--border);padding:12px 14px;flex:0 0 auto}
+.trow{display:flex;justify-content:space-between;font-size:13px;padding:2.5px 0;color:var(--muted)}
+.trow.grand{font-size:23px;font-weight:700;color:var(--text);padding-top:9px;margin-top:6px;border-top:1px solid var(--border)}
+.search{padding:10px 12px;flex:0 0 auto}
+.search input{width:100%;font-size:17px;padding:11px 13px;background:var(--panel2);border:1px solid var(--accent);border-radius:7px;color:var(--text)}
+.keys{display:flex;gap:16px;padding:9px 18px;background:var(--panel);border-top:1px solid var(--border);font-size:12.5px;color:var(--muted);flex:0 0 auto;flex-wrap:wrap}
+.keys b{color:var(--text)}
+.pay{display:flex;gap:8px;padding:0 12px 12px}
+.pay button{flex:1;padding:13px;font-size:14.5px;font-weight:600;border-radius:7px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer}
+.pay button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+</style></head><body>
+<div class="top">
+  <span class="name">Counter</span><span class="tag tag-on">Online</span>
+  <div class="spacer"></div>
+  <div class="shiftbar">
+    <span>Cashier <b>Rehana</b></span>
+    <span>Shift <b>R1-000042</b></span>
+    <span>Since <b>09:04</b></span>
+    <span>Float <b>৳ 2,000</b></span>
+    <span>Drawer <b class="mono">৳ 18,430</b></span>
+  </div>
+  <button class="btn">Clock out</button>
+  <button class="btn">Close shift &amp; count</button>
+</div>
+<div class="main">
+  <div class="col">
+    <div class="card" style="flex:0 0 auto">
+      <h3>Customer</h3>
+      <div class="cbody">
+        <div class="cust-name">Karim Uddin</div>
+        <div class="cust-ph">01711-223344</div>
+        <div class="kv"><span>Owes</span><span class="mono">৳ 4,200.00</span></div>
+        <div class="kv"><span>Limit</span><span class="mono">৳ 10,000.00</span></div>
+        <div class="kv"><span>Available</span><span class="avail mono">৳ 5,800.00</span></div>
+        <div class="due">Oldest due 34 days</div>
+      </div>
+    </div>
+    <div class="card" style="flex:1">
+      <h3>Usual for this customer</h3>
+      <div class="cbody" style="display:flex;flex-direction:column;gap:7px">
+        <div class="tile" style="min-height:auto"><div class="tn">Chinigura Rice 5kg</div><div class="ts">bought 14×</div></div>
+        <div class="tile" style="min-height:auto"><div class="tn">Soyabin Oil 1L</div><div class="ts">bought 11×</div></div>
+        <div class="tile" style="min-height:auto"><div class="tn">Atta 2kg</div><div class="ts">bought 9×</div></div>
+        <div class="tile" style="min-height:auto"><div class="tn">Sugar 1kg</div><div class="ts">bought 7×</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card" style="flex:1">
+      <h3>Products</h3>
+      <div class="cats">
+        <span class="cat on">All</span><span class="cat">Rice &amp; Grain</span><span class="cat">Oil</span>
+        <span class="cat">Sugar &amp; Tea</span><span class="cat">Pulses</span><span class="cat">Spices</span><span class="cat">Dairy</span>
+      </div>
+      <div class="grid">
+        <div class="tile"><div class="tn">Chinigura Rice 5kg</div><div class="ts">40 in stock</div><div class="tp mono">৳ 620</div></div>
+        <div class="tile"><div class="tn">Miniket Rice 25kg</div><div class="ts">12 in stock</div><div class="tp mono">৳ 2,450</div></div>
+        <div class="tile"><div class="tn">Basmati Rice 1kg</div><div class="ts">18 in stock</div><div class="tp mono">৳ 320</div></div>
+        <div class="tile"><div class="tn">Soyabin Oil 1L</div><div class="ts">60 in stock</div><div class="tp mono">৳ 185</div></div>
+        <div class="tile"><div class="tn">Soyabin Oil 5L</div><div class="ts">22 in stock</div><div class="tp mono">৳ 890</div></div>
+        <div class="tile"><div class="tn">Atta 2kg</div><div class="ts">25 in stock</div><div class="tp mono">৳ 145</div></div>
+        <div class="tile"><div class="tn">Sugar 1kg</div><div class="ts">50 in stock</div><div class="tp mono">৳ 135</div></div>
+        <div class="tile low"><div class="tn">Red Lentil 1kg</div><div class="ts">6 left — low</div><div class="tp mono">৳ 165</div></div>
+        <div class="tile"><div class="tn">Chickpea 1kg</div><div class="ts">30 in stock</div><div class="tp mono">৳ 155</div></div>
+        <div class="tile"><div class="tn">Tea 400g</div><div class="ts">44 in stock</div><div class="tp mono">৳ 285</div></div>
+        <div class="tile"><div class="tn">Powder Milk 500g</div><div class="ts">17 in stock</div><div class="tp mono">৳ 480</div></div>
+        <div class="tile low"><div class="tn">Turmeric 200g</div><div class="ts">4 left — low</div><div class="tp mono">৳ 95</div></div>
+      </div>
+      <div class="search"><input value="" placeholder="Scan, or type SKU / barcode / name"></div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="card" style="flex:1">
+      <h3>Cart — 4 items</h3>
+      <div class="cbody" style="flex:1">
+        <div class="line"><div><div class="ln">Chinigura Rice 5kg</div><div class="lm">৳ 620.00 × 2</div></div>
+          <div class="qty"><button class="qb">−</button><b>2</b><button class="qb">+</button></div><div class="lt mono">৳ 1,240.00</div></div>
+        <div class="line"><div><div class="ln">Soyabin Oil 1L</div><div class="lm">৳ 185.00 × 1</div></div>
+          <div class="qty"><button class="qb">−</button><b>1</b><button class="qb">+</button></div><div class="lt mono">৳ 185.00</div></div>
+        <div class="line"><div><div class="ln">Sugar 1kg</div><div class="lm">৳ 135.00 × 2</div><div class="disc">Line discount −৳ 20.00</div></div>
+          <div class="qty"><button class="qb">−</button><b>2</b><button class="qb">+</button></div><div class="lt mono">৳ 250.00</div></div>
+        <div class="line"><div><div class="ln">Tea 400g</div><div class="lm">৳ 285.00 × 1</div></div>
+          <div class="qty"><button class="qb">−</button><b>1</b><button class="qb">+</button></div><div class="lt mono">৳ 285.00</div></div>
+      </div>
+      <div class="totals">
+        <div class="trow"><span>Subtotal</span><span class="mono">৳ 1,980.00</span></div>
+        <div class="trow"><span>Line discounts</span><span class="mono">−৳ 20.00</span></div>
+        <div class="trow"><span>Cart discount (5%)</span><span class="mono">−৳ 98.00</span></div>
+        <div class="trow"><span>VAT included</span><span class="mono">৳ 245.60</span></div>
+        <div class="trow grand"><span>Total</span><span class="mono">৳ 1,862.00</span></div>
+      </div>
+      <div class="pay"><button>Hold F7</button><button class="go">Take payment · F2</button></div>
+    </div>
+  </div>
+</div>
+<div class="keys">
+  <span><b>F2</b> Pay</span><span><b>F3</b> Qty</span><span><b>F4</b> Discount</span><span><b>F5</b> New item</span>
+  <span><b>F6</b> Customer</span><span><b>F7</b> Hold</span><span><b>F8</b> Resume</span><span><b>F9</b> Return</span>
+  <span><b>F10</b> No-sale</span><span><b>F11</b> Clock in/out</span><span><b>F12</b> Close shift</span><span><b>Esc</b> Void</span>
+</div>
+</body></html>
