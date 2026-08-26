@@ -61,9 +61,20 @@ and independently verified (dispatch works, the process reaches the suite). What
 accounts active. Once that happens, re-run `scripts/deploy.sh selftest` to get the real labelled
 pass/fail baseline this project has never actually had.
 
+**Update, same day, after fixing the `Selftest.php:2724` crash and re-deploying:** the suite got much
+further (~74 methods in, past `test_sale_idempotent` cleanly) and hit a **second, different** crash
+from the exact same root cause — `test_late_sales()` passes a `WP_Error` (a refused/failed sale,
+because CASH is still inactive) straight into `ShiftReport::build( int $shift_id )`, which has no
+type-check on its argument: `TypeError: ...build(): Argument #1 ($shift_id) must be of type int,
+WP_Error given`. **Not fixing this one defensively** — it is the same story as the first crash (a
+method downstream of a sale assumes the sale succeeded), and with the accounts still inactive there is
+every reason to expect more of these further into `run()`'s ~90 methods. Patching each one blind, unable
+to verify any of them because the suite still can't complete, is not a good use of an unattended run —
+the actual fix is the one-line data flip above. Filed here as more evidence for whoever picks this up:
+**this is not several bugs, it is one blocker with a long tail of downstream symptoms.**
+
 **In the meantime** continuing with tasks whose own self-tests don't require a completed
-`wp counter selftest` run (the DOM harness, and any check earlier in `run()`'s method order than
-`test_sale_idempotent()` at position 30) — see `docs/decisions.md` for how each task's verification is
-being handled without this baseline.
+`wp counter selftest` run — chiefly the DOM harness, now working locally (see `docs/decisions.md`),
+which covers A1/A2 without needing the live PHP suite at all.
 
 _(nothing else blocked yet)_
