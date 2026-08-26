@@ -204,6 +204,7 @@ class Selftest {
 		$this->test_reports_channel();
 		$this->test_dashboard();
 		$this->test_pos_entry_points();
+		$this->test_first_run_panel();
 		$this->test_expenses();
 		$this->test_pin();
 		$this->test_attendance();
@@ -7122,6 +7123,70 @@ class Selftest {
 		);
 
 		wp_set_current_user( $original_user_id );
+	}
+
+	// -- A6: test_first_run_panel() -- 3 checks ----------------------------------
+
+	/**
+	 * A6 — Dashboard::readiness_items() is a pure function over a facts
+	 * array (Dashboard::gather_readiness_facts() supplies the real reads);
+	 * checks 1-2 pass synthetic facts rather than needing this site's real
+	 * user table to genuinely have zero cashiers, which it never will once
+	 * any fixture has ever run. Only check 3 (dismissal) touches real state,
+	 * and restores the option's prior value afterward, same discipline as
+	 * test_settings()'s own settings_prior_marker.
+	 */
+	private function test_first_run_panel(): void {
+		$dashboard_class = \Counter\Admin\Screens\Dashboard::class;
+
+		// 1. Reports the seeded register — real facts for this one item,
+		// since peapip.com (and any activated install per COUNTERV2.md
+		// §0.3) always has one.
+		$real_facts = [
+			'location_id'    => \Counter\Stock\Locations::default_id(),
+			'registers'      => \Counter\Pos\Registers::all( 'active' ),
+			'accounts'       => [],
+			'cashier_count'  => 0,
+			'product_count'  => 0,
+			'any_open_shift' => false,
+		];
+		$items_real = $dashboard_class::readiness_items( $real_facts );
+		$this->check(
+			'test_first_run_panel: reports the seeded register',
+			true === ( $items_real[0]['ok'] ?? null ),
+			wp_json_encode( $items_real[0] ?? null )
+		);
+
+		// 2. Reports zero cashiers on an install with none.
+		$items_no_cashiers = $dashboard_class::readiness_items( array_merge( $real_facts, [ 'cashier_count' => 0 ] ) );
+		$this->check(
+			'test_first_run_panel: reports zero cashiers on an install with none',
+			false === ( $items_no_cashiers[2]['ok'] ?? null ),
+			wp_json_encode( $items_no_cashiers[2] ?? null )
+		);
+
+		// 3. Does not render once dismissed.
+		$prior_dismissed = get_option( 'cntr_readiness_dismissed', false );
+		$original_user_id_panel = get_current_user_id();
+		$admins_panel            = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_panel ) ) {
+			wp_set_current_user( (int) $admins_panel[0] );
+		}
+		update_option( 'cntr_readiness_dismissed', 1 );
+		ob_start();
+		$dashboard_class::render();
+		$html_dismissed = ob_get_clean();
+		if ( false === $prior_dismissed ) {
+			delete_option( 'cntr_readiness_dismissed' );
+		} else {
+			update_option( 'cntr_readiness_dismissed', $prior_dismissed );
+		}
+		wp_set_current_user( $original_user_id_panel );
+		$this->check(
+			'test_first_run_panel: does not render once dismissed',
+			! str_contains( $html_dismissed, 'Is the shop ready to sell?' ),
+			'len=' . strlen( $html_dismissed )
+		);
 	}
 
 	// -- P5.4: test_expenses() -- 7 checks ----------------------------------------
