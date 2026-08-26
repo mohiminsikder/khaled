@@ -1,0 +1,804 @@
+<title>Counter Till-First Build Direction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+
+<style>
+/* ---- Tokens: light is the base. Palette derives from Counter's own
+       assets/pos.css — the till's real ground, accent and danger hues,
+       so the document and the product read as one system. ---- */
+:root {
+  --ground:      #f6f7f9;
+  --surface:     #ffffff;
+  --surface-2:   #eef0f4;
+  --line:        #d9dde5;
+  --line-soft:   #e7eaf0;
+  --ink:         #171a21;
+  --ink-2:       #454b59;
+  --ink-3:       #6d7484;
+  --accent:      #2f6ce5;   /* pos.css --cntr-accent, seated for light ground */
+  --accent-soft: #e8effd;
+  --critical:    #c3373c;   /* pos.css --cntr-danger */
+  --critical-soft:#fceced;
+  --warn:        #9a6208;
+  --warn-soft:   #fbf1e0;
+  --good:        #0a7a2f;   /* pos.css --cntr-net-online */
+  --good-soft:   #e3f7e9;
+  --code-bg:     #f0f2f6;
+  --shadow:      0 1px 2px rgba(23,26,33,.05), 0 8px 24px -16px rgba(23,26,33,.28);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground:      #101218;
+    --surface:     #191c24;
+    --surface-2:   #21252f;
+    --line:        #2f3542;
+    --line-soft:   #262b36;
+    --ink:         #e8eaf0;
+    --ink-2:       #b3b9c8;
+    --ink-3:       #868d9f;
+    --accent:      #6b9cff;
+    --accent-soft: #1b2740;
+    --critical:    #f4767a;
+    --critical-soft:#331c1e;
+    --warn:        #e0a33f;
+    --warn-soft:   #2e2515;
+    --good:        #5cc47f;
+    --good-soft:   #14301f;
+    --code-bg:     #1e222b;
+    --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground:      #101218;
+  --surface:     #191c24;
+  --surface-2:   #21252f;
+  --line:        #2f3542;
+  --line-soft:   #262b36;
+  --ink:         #e8eaf0;
+  --ink-2:       #b3b9c8;
+  --ink-3:       #868d9f;
+  --accent:      #6b9cff;
+  --accent-soft: #1b2740;
+  --critical:    #f4767a;
+  --critical-soft:#331c1e;
+  --warn:        #e0a33f;
+  --warn-soft:   #2e2515;
+  --good:        #5cc47f;
+  --good-soft:   #14301f;
+  --code-bg:     #1e222b;
+  --shadow:      0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 28px 120px;
+}
+
+/* ---- Type scale ---- */
+h1, h2, h3, h4 {
+  font-family: Archivo, ui-sans-serif, system-ui, sans-serif;
+  text-wrap: balance;
+  margin: 0;
+  letter-spacing: -0.015em;
+}
+h1 { font-size: 2.6rem; font-weight: 700; line-height: 1.1; }
+h2 { font-size: 1.6rem; font-weight: 650; line-height: 1.2; }
+h3 { font-size: 1.16rem; font-weight: 650; line-height: 1.3; }
+h4 { font-size: .98rem; font-weight: 650; line-height: 1.35; }
+
+p { margin: 0; }
+strong { font-weight: 600; color: var(--ink); }
+em { font-style: italic; }
+
+code, .mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .855em;
+}
+p code, li code, td code {
+  background: var(--code-bg);
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  padding: .08em .34em;
+  white-space: nowrap;
+}
+
+.eyebrow {
+  font-family: Archivo, sans-serif;
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* ---- Header ---- */
+header.top {
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  padding: 54px 0 40px;
+  margin-bottom: 52px;
+}
+header.top .wrap { padding-bottom: 0; display: flex; flex-direction: column; gap: 18px; }
+.lede {
+  font-size: 1.22rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: 64ch;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: .82rem;
+  color: var(--ink-3);
+  font-family: "JetBrains Mono", monospace;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* ---- Sections ---- */
+section { margin-bottom: 60px; }
+.sec-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--ink);
+}
+.stack { display: flex; flex-direction: column; gap: 18px; }
+.stack-tight { display: flex; flex-direction: column; gap: 12px; }
+
+/* ---- Verdict row ---- */
+.verdicts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+.verdict {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: var(--shadow);
+}
+.verdict .what { font-family: Archivo, sans-serif; font-weight: 600; font-size: .95rem; }
+.verdict .say { font-size: .88rem; color: var(--ink-2); line-height: 1.45; }
+.dot {
+  display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+  margin-right: 8px; vertical-align: middle;
+}
+.dot-good { background: var(--good); }
+.dot-warn { background: var(--warn); }
+.dot-bad  { background: var(--critical); }
+
+/* ---- Chips ---- */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: Archivo, sans-serif;
+  font-size: .68rem; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 4px; white-space: nowrap;
+}
+.chip-bad  { background: var(--critical-soft); color: var(--critical); }
+.chip-warn { background: var(--warn-soft); color: var(--warn); }
+.chip-good { background: var(--good-soft); color: var(--good); }
+.chip-info { background: var(--accent-soft); color: var(--accent); }
+
+/* ---- Callout ---- */
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  padding: 16px 20px;
+  border-radius: 0 6px 6px 0;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.callout.bad { border-left-color: var(--critical); background: var(--critical-soft); }
+.callout p { font-size: .96rem; line-height: 1.55; }
+
+/* ---- Paired plan-vs-shipped device ---- */
+.pair {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.pair > .pair-head {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.pair-head .name { font-family: Archivo, sans-serif; font-weight: 650; font-size: 1rem; }
+.pair-body { display: grid; grid-template-columns: 1fr 1fr; }
+.pair-body > div { padding: 14px 18px 16px; display: flex; flex-direction: column; gap: 6px; }
+.pair-body > div:first-child { border-right: 1px solid var(--line-soft); }
+.pair-body .lbl {
+  font-family: Archivo, sans-serif; font-size: .68rem; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+}
+.pair-body p { font-size: .92rem; line-height: 1.5; color: var(--ink-2); }
+@media (max-width: 620px) {
+  .pair-body { grid-template-columns: 1fr; }
+  .pair-body > div:first-child { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+}
+
+/* ---- Tables ---- */
+.twrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); }
+table { border-collapse: collapse; width: 100%; font-size: .91rem; min-width: 560px; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+thead th {
+  font-family: Archivo, sans-serif; font-size: .7rem; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--ink-3);
+  background: var(--surface-2); border-bottom: 1px solid var(--line);
+  position: sticky; top: 0;
+}
+tbody tr:last-child td { border-bottom: 0; }
+td.key { font-family: "JetBrains Mono", monospace; font-weight: 600; white-space: nowrap; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ---- Ordered build steps: a real sequence, so numbered ---- */
+ol.steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+ol.steps > li {
+  counter-increment: s;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px 16px 60px;
+  position: relative;
+  box-shadow: var(--shadow);
+}
+ol.steps > li::before {
+  content: counter(s);
+  position: absolute; left: 16px; top: 15px;
+  width: 28px; height: 28px; border-radius: 6px;
+  background: var(--ink); color: var(--ground);
+  font-family: Archivo, sans-serif; font-weight: 700; font-size: .88rem;
+  display: flex; align-items: center; justify-content: center;
+}
+ol.steps h4 { margin-bottom: 5px; }
+ol.steps p { font-size: .93rem; color: var(--ink-2); line-height: 1.5; }
+.step-tag { float: right; margin-left: 12px; }
+
+/* ---- Plain lists ---- */
+ul.plain { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+ul.plain li { font-size: .95rem; color: var(--ink-2); line-height: 1.5; }
+ul.plain li strong { color: var(--ink); }
+
+/* ---- Wireframe ---- */
+.wire {
+  background: #14171e;
+  border: 1px solid #2a2f3b;
+  border-radius: 8px;
+  padding: 18px;
+  color: #e8eaf0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: .78rem;
+  line-height: 1.65;
+  overflow-x: auto;
+  white-space: pre;
+  box-shadow: var(--shadow);
+}
+.wire .hi { color: #6b9cff; }
+.wire .em { color: #f0c674; }
+.wire .mut { color: #7f8797; }
+
+figcaption {
+  font-size: .82rem; color: var(--ink-3); margin-top: 8px; line-height: 1.45;
+}
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:focus-visible, li:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+@media (max-width: 560px) {
+  body { font-size: 16px; }
+  h1 { font-size: 2rem; }
+  .wrap { padding: 0 18px 80px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <span class="eyebrow">Counter v0.1.8 · frontend build direction</span>
+    <h1>The backend is a shop. The till is a demo.</h1>
+    <p class="lede">
+      A read of the shipped plugin against <span class="mono">COUNTERIMPLEMENTATION.md</span>. The plan is sound and
+      the PHP behind it is genuinely good. But the till screen — the one surface a shop
+      representative touches all day — has five keyboard actions wired to empty functions, no way
+      to search a product by name, no way to split a payment, and no way at all to bill a
+      standing customer on account.
+    </p>
+    <div class="meta">
+      <span>102 files</span>
+      <span>17 admin screens</span>
+      <span>5 F-keys stubbed</span>
+      <span>1 tender row max</span>
+      <span>0 DOM tests</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">The short answer</span>
+    <h2>Is the plan OK? Is the plugin OK?</h2>
+  </div>
+  <div class="stack">
+    <div class="verdicts">
+      <div class="verdict">
+        <span class="what"><span class="dot dot-good"></span>The plan</span>
+        <span class="say">Unusually good. Invariants, schema, per-task self-tests, and it explicitly
+        called for the things that are missing. Not the problem.</span>
+      </div>
+      <div class="verdict">
+        <span class="what"><span class="dot dot-good"></span>The PHP backend</span>
+        <span class="say">Real work. Phone normalisation, credit limits, FIFO costing, ledger
+        discipline, HPOS. Carefully commented and self-tested.</span>
+      </div>
+      <div class="verdict">
+        <span class="what"><span class="dot dot-bad"></span>The till UI</span>
+        <span class="say">A shell. ~95 lines of <span class="mono">innerHTML</span> render the whole
+        screen. Core interactions are empty function bodies.</span>
+      </div>
+      <div class="verdict">
+        <span class="what"><span class="dot dot-warn"></span>wp-admin</span>
+        <span class="say">The earlier audit read this correctly — 9 back-office areas have no
+        screen, and the nav is one flat list.</span>
+      </div>
+    </div>
+
+    <div class="callout bad">
+      <p><strong>One correction to the earlier audit.</strong> It concluded that
+      &ldquo;the plan itself is fully built and self-tested&rdquo; and that everything remaining is
+      &ldquo;the next phase, not a defect in what shipped.&rdquo; That holds for the missing
+      wp-admin screens. It does <em>not</em> hold for the till. Task <span class="mono">P1.13</span>
+      named F3, F4, F5 and F10 in a keyboard-map table, and <span class="mono">P1.14</span> named
+      split tenders in its own commit message. Those shipped as empty functions and a
+      single-row form. That is a defect in what shipped, and it sits on the highest-traffic
+      screen in the product.</p>
+    </div>
+
+    <p>The earlier audit looked only at wp-admin, so it never opened
+    <span class="mono">assets/pos.js</span>. Everything below that concerns the till is new.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Root cause</span>
+    <h2>Why the suite is green and the screen is hollow</h2>
+  </div>
+  <div class="stack">
+    <p><span class="mono">Selftest.php</span> is 490 KB — larger than the rest of the plugin put
+    together — and it passes. It passes because of what it checks. The terminal's entire test,
+    <span class="mono">test_terminal_assets()</span>, is five assertions:</p>
+
+    <div class="twrap">
+      <table>
+        <thead><tr><th>#</th><th>Assertion</th><th>Would an empty <span class="mono">F4</span> fail it?</th></tr></thead>
+        <tbody>
+          <tr><td class="key tnum">1</td><td><span class="mono">/pos/</span> does not return 404</td><td>No</td></tr>
+          <tr><td class="key tnum">2</td><td>HTML contains <span class="mono">window.CNTR</span> and the asset tags</td><td>No</td></tr>
+          <tr><td class="key tnum">3</td><td><span class="mono">pos.js</span> contains no external host</td><td>No</td></tr>
+          <tr><td class="key tnum">4</td><td><span class="mono">pos.js</span> contains no <span class="mono">console.log</span></td><td>No</td></tr>
+          <tr><td class="key tnum">5</td><td>Catalogue endpoint honours the terminal role</td><td>No</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>Not one assertion invokes a UI interaction. The business-logic tests that <em>do</em> pass —
+    split tenders, credit shortfalls, weight barcodes — reach the code through
+    <span class="mono">window.CNTR._pos</span>, an export hatch at the bottom of the file that hands
+    the test suite <span class="mono">submitSale</span>, <span class="mono">searchByText</span> and a
+    dozen others directly. The tests call the functions. The screen never does.</p>
+
+    <div class="callout">
+      <p>The plan predicted this exactly. <span class="mono">P1.13</span> says:
+      <strong>&ldquo;Manual — this is the bulk of the verification and cannot be done from a
+      terminal&rdquo;</strong>, and lists <em>&ldquo;Every key in the map, in order, on the real
+      machine.&rdquo;</em> That manual pass is the only thing that would have caught this, and it is
+      the one step a coding agent structurally cannot perform. The gap is not carelessness — it is
+      the seam the plan itself flagged, landed on.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Evidence</span>
+    <h2>What the keyboard map actually does</h2>
+  </div>
+  <div class="stack">
+    <p>Every key below is bound in <span class="mono">initKeyboardMap()</span> and calls a real
+    function name. Five of those functions do nothing.</p>
+
+    <div class="twrap">
+      <table>
+        <thead><tr><th>Key</th><th>P1.13 says</th><th>v0.1.8 does</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="key">F2</td><td>Tender screen — <strong>split</strong>, card, bKash</td><td>One method, one amount. No split, no credit.</td><td><span class="chip chip-warn">Partial</span></td></tr>
+          <tr><td class="key">F3</td><td>Change quantity on the selected line</td><td><span class="mono">changeSelectedQty()</span> — empty body</td><td><span class="chip chip-bad">Stub</span></td></tr>
+          <tr><td class="key">F4</td><td>Line discount / price override, audited</td><td><span class="mono">lineDiscountPrompt()</span> — empty body</td><td><span class="chip chip-bad">Stub</span></td></tr>
+          <tr><td class="key">F5</td><td>Minimal product form: name, price, barcode, unit, opening qty</td><td>Opens <span class="mono">&lt;div id="cntr-quick-add" hidden&gt;&lt;/div&gt;</span> — never filled</td><td><span class="chip chip-bad">Stub</span></td></tr>
+          <tr><td class="key">F6</td><td>Attach customer by phone</td><td><span class="mono">prompt()</span>. Never calls the lookup endpoint.</td><td><span class="chip chip-bad">Stub</span></td></tr>
+          <tr><td class="key">F7/F8</td><td>Hold / resume a parked sale</td><td>LIFO <span class="mono">pop()</span>, memory only. Cannot choose which ticket; refresh loses all.</td><td><span class="chip chip-warn">Partial</span></td></tr>
+          <tr><td class="key">F9</td><td>Return or exchange</td><td>Genuinely built — picker, per-line qty, receipt.</td><td><span class="chip chip-good">Works</span></td></tr>
+          <tr><td class="key">F10</td><td>No-sale, open drawer, audited</td><td><span class="mono">noSale()</span> — empty body</td><td><span class="chip chip-bad">Stub</span></td></tr>
+          <tr><td class="key">Esc</td><td>Void the line, <em>then</em> the cart</td><td><span class="mono">lines.pop()</span> — drops the last line silently, no confirm</td><td><span class="chip chip-warn">Partial</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Three more, outside the keyboard map</h3>
+    <div class="stack-tight">
+      <div class="pair">
+        <div class="pair-head"><span class="name">Product search by name</span><span class="chip chip-bad">Unreachable</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Built</span><p><span class="mono">searchByText()</span> exists, filters name and SKU, caps at 20 results — correct and fast.</p></div>
+          <div><span class="lbl">Wired</span><p>Only into <span class="mono">window.CNTR._pos</span> for the tests. The search box calls <span class="mono">lookupProduct()</span>, an <em>exact</em> barcode/SKU match. Type &ldquo;coca&rdquo; and nothing happens — ever.</p></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="pair-head"><span class="name">Bootstrap settings</span><span class="chip chip-bad">Dead config</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Sent to the client</span><p><span class="mono">discountCeilingPct</span>, <span class="mono">roundingStep</span>, <span class="mono">searchFields</span> — all three plumbed into <span class="mono">window.CNTR</span> by <span class="mono">templates/pos.php</span>.</p></div>
+          <div><span class="lbl">Read by pos.js</span><p>None of them. Zero references. Cash rounding never happens at the tender screen; the discount ceiling guards nothing, because there is no discount UI to guard.</p></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="pair-head"><span class="name">Quick-added product flagging</span><span class="chip chip-warn">Half</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">P1.13 says</span><p>Products created at the till are &ldquo;flagged and listed on a Health-page screen so somebody completes their category, tax class and cost later.&rdquo;</p></div>
+          <div><span class="lbl">Shipped</span><p>The flag is written (<span class="mono">_cntr_quick_added</span>). Nothing anywhere reads it. The list does not exist.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <h3>Two defects with no plan line, found in the same read</h3>
+    <ul class="plain">
+      <li><strong>Focus is never restored.</strong> The only <span class="mono">.focus()</span> call in
+      the entire file targets the print iframe. <span class="mono">render()</span> replaces
+      <span class="mono">root.innerHTML</span> wholesale on every cart change, destroying and
+      recreating the search input, and relies on the <span class="mono">autofocus</span> attribute —
+      which does not reliably re-fire on re-inserted nodes. After a sale prints, focus is inside the
+      iframe. Scanning still works (the scanner listens on <span class="mono">window</span>), but
+      typing goes nowhere until the cashier clicks the box.</li>
+      <li><strong>The cart rows are inert.</strong> Each <span class="mono">&lt;li&gt;</span> carries a
+      <span class="mono">data-idx</span> and nothing listens for it. No row selection, no per-line
+      remove, no quantity control, no line total, no tax or discount column — so &ldquo;the selected
+      line&rdquo; that F3 and F4 are supposed to act on has no way to be selected in the first
+      place.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Priority 1</span>
+    <h2>Billing a standing customer</h2>
+  </div>
+  <div class="stack">
+    <p>This is the stated first priority, and it is currently the widest gap in the product: a
+    regular customer — the one who buys weekly, has a running <span class="mono">বাকি</span>
+    balance, and may pay part now and part later — cannot be billed correctly from the till at all.
+    Not awkwardly. At all.</p>
+
+    <h3>The backend is finished and waiting</h3>
+    <ul class="plain">
+      <li><span class="mono">Pos\Customers::normalise()</span> folds <span class="mono">+8801711…</span>,
+      <span class="mono">8801711…</span>, <span class="mono">01711…</span> and
+      <span class="mono">1711…</span> onto one key, and rejects anything else rather than storing a
+      mangled record.</li>
+      <li><span class="mono">Customers::lookup()</span> returns <em>every</em> candidate for a phone,
+      newest first — its own comment says &ldquo;a household shares a number; the till shows a picker
+      rather than guessing which one is right.&rdquo;</li>
+      <li><span class="mono">Tenders::VALID_METHODS</span> already includes
+      <span class="mono">'credit'</span>. A shortfall against an identified customer holding
+      <span class="mono">cntr_credit_sale</span> is written as a real ledger debit.</li>
+      <li><span class="mono">CustomerLedger</span> has <span class="mono">check_limit()</span>,
+      <span class="mono">balance()</span>, <span class="mono">record_payment()</span>,
+      <span class="mono">aging()</span> and <span class="mono">statement()</span>. The limit is
+      checked <em>before</em> the order is created, and refuses with a readable message.</li>
+    </ul>
+
+    <div class="callout bad">
+      <p><strong>None of it is reachable.</strong> The tender dropdown offers cash, card, bKash,
+      Nagad, Rocket, bank — <em>credit is not in the list</em>. The customer is attached by a browser
+      <span class="mono">prompt()</span> that stores a raw typed string and never calls
+      <span class="mono">/customers/lookup</span>. So <span class="mono">resolve_customer()</span>
+      re-normalises server-side and silently takes <span class="mono">matches[0]</span> — the exact
+      household guess the backend author wrote a picker comment to prevent.</p>
+    </div>
+
+    <h3>What has to be added</h3>
+    <p>Almost all of this is frontend. Exactly one backend addition is required, because the
+    lookup endpoint returns identity only — <span class="mono">cntr_customer_index</span> holds
+    <span class="mono">phone_norm</span>, <span class="mono">customer_id</span>,
+    <span class="mono">display_name</span>, <span class="mono">last_order_at</span> and nothing
+    else. The till cannot show what someone owes.</p>
+
+    <div class="twrap">
+      <table>
+        <thead><tr><th>Piece</th><th>Where</th><th>Note</th></tr></thead>
+        <tbody>
+          <tr><td><span class="mono">GET /customers/{id}/profile</span></td><td>New — <span class="mono">Rest/Customer.php</span></td><td>Returns <span class="mono">balance</span>, <span class="mono">credit_limit</span>, <span class="mono">available</span>, <span class="mono">oldest_due_days</span> from <span class="mono">CustomerLedger</span>, plus the customer's 12 most-bought items. Guard <span class="mono">cntr_use_pos</span>.</td></tr>
+          <tr><td>Customer panel</td><td><span class="mono">pos.js</span> + <span class="mono">pos.css</span></td><td>Persistent, not a modal. Name, phone, balance, available credit.</td></tr>
+          <tr><td>Household picker</td><td><span class="mono">pos.js</span></td><td>Render every row <span class="mono">lookup</span> returns. Never auto-pick.</td></tr>
+          <tr><td>Credit tender row</td><td><span class="mono">pos.js</span></td><td>Add <span class="mono">'credit'</span> to the method list, gated on <span class="mono">cntr_credit_sale</span>.</td></tr>
+          <tr><td>Multi-row tender</td><td><span class="mono">pos.js</span></td><td><span class="mono">submitSale()</span> already accepts an array. Only the form is single-row.</td></tr>
+          <tr><td>&ldquo;Usual items&rdquo; strip</td><td><span class="mono">pos.js</span></td><td>Tap-to-add from the profile response. This is the &ldquo;as per their need&rdquo; half.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The flow to build</h3>
+    <figure>
+      <div class="wire">┌─ Counter ──────────────────────────── <span class="hi">ONLINE</span> ─ Shift R1-000042 ─┐
+│                                                                 │
+│  <span class="mut">┌ CUSTOMER ─────────────────────┐</span>  <span class="mut">┌ CART ─────────────────┐</span>  │
+│  <span class="mut">│</span> <span class="em">Karim Uddin</span>                   <span class="mut">│</span>  <span class="mut">│</span> Chinigura rice 5kg    <span class="mut">│</span>  │
+│  <span class="mut">│</span> 01711-223344                  <span class="mut">│</span>  <span class="mut">│</span>   2 × 620.00 = 1240.00<span class="mut">│</span>  │
+│  <span class="mut">│</span>                               <span class="mut">│</span>  <span class="mut">│</span> Soyabin oil 1L        <span class="mut">│</span>  │
+│  <span class="mut">│</span> Owes    <span class="em">৳ 4,200.00</span>            <span class="mut">│</span>  <span class="mut">│</span>   1 × 185.00 =  185.00<span class="mut">│</span>  │
+│  <span class="mut">│</span> Limit   ৳ 10,000.00           <span class="mut">│</span>  <span class="mut">│</span>                       <span class="mut">│</span>  │
+│  <span class="mut">│</span> <span class="hi">Available ৳ 5,800.00</span>          <span class="mut">│</span>  <span class="mut">│</span> <span class="mut">[↑↓ select · +/− qty]</span> <span class="mut">│</span>  │
+│  <span class="mut">│</span> Oldest due 34 days            <span class="mut">│</span>  <span class="mut">└───────────────────────┘</span>  │
+│  <span class="mut">└───────────────────────────────┘</span>                             │
+│                                                                 │
+│  <span class="mut">Usual:</span> <span class="hi">[Rice 5kg]</span> <span class="hi">[Oil 1L]</span> <span class="hi">[Atta 2kg]</span> <span class="hi">[Sugar 1kg]</span> <span class="hi">[Tea 400g]</span>  │
+│                                                                 │
+│  <span class="mut">Scan or type name / SKU / barcode ─────────────────────────</span>   │
+│                                                          <span class="em">1425.00</span> │
+└─────────────────────────────────────────────────────────────────┘
+
+  F2 <span class="mut">Pay</span>   F3 <span class="mut">Qty</span>   F4 <span class="mut">Discount</span>   F5 <span class="mut">New item</span>   F6 <span class="mut">Customer</span>   F7 <span class="mut">Hold</span></div>
+      <figcaption>Structure, not styling. The two facts that must never be more than one glance
+      away are <em>who this is</em> and <em>how much credit they have left</em> — both are absent
+      from v0.1.8 entirely.</figcaption>
+    </figure>
+
+    <h3>The tender screen, rebuilt</h3>
+    <figure>
+      <div class="wire">┌─ Take payment ─────────── Due <span class="em">৳ 1,425.00</span> ─┐
+│                                              │
+│   Cash      [   1000.00 ]              <span class="mut">[×]</span>   │
+│   bKash     [    200.00 ]              <span class="mut">[×]</span>   │
+│   <span class="hi">Credit</span>    [    225.00 ]              <span class="mut">[×]</span>   │
+│   <span class="mut">+ add another method</span>                     │
+│                                              │
+│   Taken     ৳ 1,425.00                       │
+│   <span class="hi">Remaining  ৳ 0.00</span>                          │
+│   Change    ৳ 0.00                           │
+│                                              │
+│   <span class="mut">On account after this sale: ৳ 4,425.00</span>     │
+│   <span class="mut">of ৳ 10,000.00 limit</span>                      │
+│                                              │
+│   [ Take payment &amp; print ]      [ Cancel ]   │
+└──────────────────────────────────────────────┘</div>
+      <figcaption>Multi-row, because half cash and half bKash is the ordinary case in a
+      Bangladeshi shop — <span class="mono">P1.14</span> says so in as many words. The credit row is
+      what makes a standing customer billable.</figcaption>
+    </figure>
+
+    <h4>Rules the screen must enforce</h4>
+    <ul class="plain">
+      <li>The <strong>credit row is hidden entirely</strong> unless a customer is attached
+      <em>and</em> the operator holds <span class="mono">cntr_credit_sale</span>. A credit sale to
+      &ldquo;walk-in&rdquo; is meaningless — the backend already refuses it, so the UI should never
+      offer it.</li>
+      <li><strong>Warn before the server refuses.</strong> The profile response carries
+      <span class="mono">available</span>; if the credit row exceeds it, mark the row and disable
+      submit with the reason shown inline. <span class="mono">check_limit()</span> stays the
+      authority — this is courtesy, not enforcement.</li>
+      <li><strong>Remaining must reach zero</strong> before submit enables. Cash over the due
+      becomes a <span class="mono">change</span> row automatically, as it does today.</li>
+      <li><strong>Apply <span class="mono">roundingStep</span></strong> to the cash row. It is
+      already in <span class="mono">window.CNTR</span> and currently ignored.</li>
+      <li><strong>Print the balance on the receipt.</strong> A credit customer should walk away
+      holding what they now owe. <span class="mono">Docs/Templates</span> supports this; the receipt
+      builder needs the line.</li>
+    </ul>
+
+    <div class="callout">
+      <p><strong>One architectural gap to raise before building, not after.</strong> Price tiers are
+      bound to the <em>register</em>, not the customer:
+      <span class="mono">Groups::price_at_register()</span> reads
+      <span class="mono">price_group_id</span> out of the register's
+      <span class="mono">settings_json</span>. There is no customer&rarr;price-group link anywhere in
+      the schema — I checked every reference. So a wholesale regular who walks up to the retail till
+      gets retail prices, and no amount of frontend work changes that. If &ldquo;as per their
+      need&rdquo; includes <em>their own pricing</em>, that needs a schema decision — a
+      <span class="mono">price_group_id</span> on the customer, overriding the register's when a
+      customer is attached. I would not build it silently; it changes what a sale costs.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Priority 2</span>
+    <h2>The rest of the till</h2>
+  </div>
+  <div class="stack">
+    <p>Everything here is frontend-only. No schema, no new endpoints — the logic already exists
+    and is tested.</p>
+
+    <div class="stack-tight">
+      <div class="pair">
+        <div class="pair-head"><span class="name">Name search with a result list</span><span class="chip chip-info">Cheapest high-value fix</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Build</span><p>Debounce the search box ~120 ms. Exact barcode/SKU hit still auto-adds instantly (never slow the scanner path). Otherwise call <span class="mono">searchByText()</span> and render a keyboard-navigable list: name, SKU, price, stock.</p></div>
+          <div><span class="lbl">Why it matters</span><p>Today the cashier must know the exact barcode. Every catalogue row is already in IndexedDB with name, SKU and price — the data and the search function both exist. This is wiring, not new capability.</p></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="pair-head"><span class="name">Live cart rows</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Build</span><p>Row selection (↑/↓ and click), per-row <span class="mono">+</span>/<span class="mono">−</span>, remove, and a line total column. Then F3 and F4 have something to act on.</p></div>
+          <div><span class="lbl">Also</span><p>F4 must respect <span class="mono">discountCeilingPct</span>, gate on the discount capability, and write <span class="mono">line.discount</span> — the field exists in the cart model and nothing ever sets it.</p></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="pair-head"><span class="name">F5 quick-add form</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Build</span><p>Fill the empty <span class="mono">#cntr-quick-add</span> div: name, price, barcode, unit, opening qty. On success, add the new product straight into the cart.</p></div>
+          <div><span class="lbl">Backend</span><p><span class="mono">POST /quick-add</span> and <span class="mono">submitQuickAdd()</span> are both finished. Only the form is missing.</p></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="pair-head"><span class="name">Held sales</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Build</span><p>F8 opens a list — customer, item count, total, age — instead of <span class="mono">pop()</span>. Persist to IndexedDB so a refresh or a crash does not vaporise three parked tickets.</p></div>
+          <div><span class="lbl">Plan line not yet met</span><p>&ldquo;Say so in the UI if a held item later goes out of stock.&rdquo; Check stock on resume and flag the row.</p></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="pair-head"><span class="name">Focus discipline &amp; Esc</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Build</span><p>Return focus to the search box after every render, every modal close, and every print. Stop relying on <span class="mono">autofocus</span>.</p></div>
+          <div><span class="lbl">Esc</span><p>Make it match the plan: void the <em>selected line</em>, then — on a second press, with a confirm — the cart. Not a silent <span class="mono">pop()</span>.</p></div>
+        </div>
+      </div>
+
+      <div class="pair">
+        <div class="pair-head"><span class="name">F10 no-sale</span></div>
+        <div class="pair-body">
+          <div><span class="lbl">Build</span><p>Capability gate, reason prompt, audit write, print the small slip that kicks the drawer.</p></div>
+          <div><span class="lbl">Per P1.14</span><p>The drawer only opens by printing, so the slip <em>is</em> the mechanism — and the paper trail is treated as a feature, not a workaround.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <p>Also worth doing while in this file: a visible function-key bar along the bottom. The plan's
+    answer to discoverability was &ldquo;print it on a card and tape it to the counter.&rdquo; A row
+    of labels costs nothing and trains a new cashier without the card.</p>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Priority 3</span>
+    <h2>wp-admin — where the earlier audit was right</h2>
+  </div>
+  <div class="stack">
+    <p>Confirmed by direct count: one <span class="mono">add_menu_page</span> plus sixteen
+    <span class="mono">add_submenu_page</span> calls, all in one flat list, in registration order.
+    Nine operational areas have no screen. That reading is accurate and its recommended order is
+    sound — group the sidebar first, then locations and registers, then employees, then purchasing.</p>
+
+    <p>Two refinements to that plan:</p>
+    <ul class="plain">
+      <li><strong>Build the shared entity picker first, not seventh.</strong> The audit puts the
+      reusable name-search component last. Every screen ahead of it — locations, employees,
+      suppliers, purchase orders, transfers, stocktakes — needs to resolve a product, a supplier or
+      an employee by name. Building it first means six screens consume it instead of six screens
+      shipping raw ID fields and being retrofitted later.</li>
+      <li><strong>A Settings screen is worth more than its position suggests.</strong> It is listed
+      as &ldquo;low daily-use frequency,&rdquo; which is true, but
+      <span class="mono">pos.weight_barcode_prefix</span>,
+      <span class="mono">pos.discount_ceiling_pct</span> and
+      <span class="mono">cash.rounding_step</span> all directly govern till behaviour. Once the till
+      work above actually reads those values, they stop being dormant config and start being things
+      a shop needs to change without SSH.</li>
+    </ul>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Sequence</span>
+    <h2>Build order</h2>
+  </div>
+  <ol class="steps">
+    <li>
+      <span class="chip chip-bad step-tag">Blocking</span>
+      <h4>Close the verification gap first</h4>
+      <p>Add a DOM-level test path before writing feature code, or the next pass repeats this one.
+      A headless page load of <span class="mono">/pos/</span> that dispatches real key events and
+      asserts on rendered output would have caught all five stubs. Chromium and Playwright are
+      already available in this environment. Without it, &ldquo;green&rdquo; keeps meaning
+      &ldquo;the exports work.&rdquo;</p>
+    </li>
+    <li>
+      <h4>Cart rows, focus, search results</h4>
+      <p>The foundation the rest sits on. Row selection makes F3/F4 possible; focus discipline makes
+      the screen usable after any action; the result list makes the till operable by someone who
+      does not have the barcode memorised.</p>
+    </li>
+    <li>
+      <span class="chip chip-info step-tag">Priority 1</span>
+      <h4>Standing customer: panel, picker, profile endpoint</h4>
+      <p>The one new endpoint, the persistent customer panel, and the household picker replacing
+      <span class="mono">prompt()</span>. Ends the silent <span class="mono">matches[0]</span> guess.</p>
+    </li>
+    <li>
+      <span class="chip chip-info step-tag">Priority 1</span>
+      <h4>Multi-row tender with credit</h4>
+      <p>Split payment, the credit row, live remaining/change, rounding applied, post-sale balance
+      shown and printed. This is the point at which a standing customer can actually be billed.</p>
+    </li>
+    <li>
+      <h4>F3, F4, F5, F10, held-sale list</h4>
+      <p>The remaining stubs. Each is small once step 2 exists, and each is capability-gated and
+      audited on the backend already.</p>
+    </li>
+    <li>
+      <h4>Raise the pricing question, then the admin screens</h4>
+      <p>Get a decision on customer-level price groups before starting wp-admin, since it may add a
+      column. Then the sidebar grouping, the shared picker, and the missing screens in the earlier
+      audit's order.</p>
+    </li>
+  </ol>
+</section>
+
+<section>
+  <div class="sec-head">
+    <span class="eyebrow">Scope note</span>
+    <h2>What this is and isn't</h2>
+  </div>
+  <div class="stack">
+    <p>Steps 1&ndash;5 are not new scope. They finish <span class="mono">P1.13</span> and
+    <span class="mono">P1.14</span> as those tasks were written, plus the customer-profile endpoint,
+    which is the single genuinely new backend piece and exists only because the till needs to
+    display a balance it currently cannot see.</p>
+    <p>Step 6 and the wp-admin work <em>are</em> new scope beyond
+    <span class="mono">COUNTERIMPLEMENTATION.md</span>, exactly as the earlier audit described.</p>
+    <p>Nothing in here asks for the backend to be rewritten. The PHP is the reason this is a short
+    list rather than a long one — the ledger discipline, the credit limits, the tender validation and
+    the FIFO costing are all done and tested. What is missing is the surface a person puts their
+    hands on.</p>
+  </div>
+</section>
+
+</div>
