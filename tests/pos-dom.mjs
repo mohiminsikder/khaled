@@ -20,10 +20,14 @@ await p.waitForTimeout(1400);
 const shot = async n => { await p.screenshot({ path: n + '.png' }); console.log('shot', n); };
 const cart = async () => p.$$eval('.cntr-pos-cart li', e => e.length).catch(() => 0);
 
+// -- A2: Enter submits the customer lookup, not just the Find button
+// (docs/TILLBUGS.md #2 — F6 -> type phone -> Enter did nothing).
 await p.keyboard.press('F6'); await p.waitForTimeout(300);
 await p.click('#cntr-customer-phone');
 await p.keyboard.type('01711223344', { delay: 50 });
-await p.click('#cntr-customer-lookup'); await p.waitForTimeout(900);
+await p.keyboard.press('Enter'); await p.waitForTimeout(900);
+const attachedName = await p.textContent('.cntr-customer-strip-name').catch(() => null);
+assert('Karim Uddin' === (attachedName || '').trim(), `A2: Enter on the phone field attaches the customer (got "${attachedName}")`);
 
 // -- A1: every second name-search item must add, not silently fail
 // (docs/TILLBUGS.md #1 — addHighlightedResult() left a stale
@@ -51,6 +55,27 @@ assert(total.includes('940.00'), `A1: total is ৳940.00 after three items (was 
 console.log('cart:', await cart(), total);
 await shot('10-billing-cart');
 
+// -- A2, continued: the same gap audited across the other Phase F modals.
+await p.keyboard.press('F5'); await p.waitForTimeout(300);
+await p.fill('#cntr-quick-add-name', 'Probe Item');
+await p.fill('#cntr-quick-add-price', '50');
+await p.click('#cntr-quick-add-price');
+await p.keyboard.press('Enter'); await p.waitForTimeout(500);
+const linesAfterQuickAdd = await cart();
+assert(4 === linesAfterQuickAdd, `A2: Enter submits quick-add and adds a cart line (has ${linesAfterQuickAdd})`);
+assert(await p.isHidden('#cntr-quick-add'), 'A2: quick-add modal closes after Enter');
+
+await p.keyboard.press('F10'); await p.waitForTimeout(300);
+await p.click('#cntr-no-sale-reason');
+await p.keyboard.type('Register test', { delay: 40 });
+await p.keyboard.press('Enter'); await p.waitForTimeout(500);
+assert(await p.isHidden('#cntr-no-sale'), 'A2: Enter submits the no-sale modal and closes it');
+
+// printReceipt() focuses the print iframe's own window; nothing ever
+// hands focus back in headless Chrome (no real print dialog to return
+// from), so the next keyboard shortcut would go nowhere without this.
+await p.click('.cntr-pos-header').catch(() => {}); await p.waitForTimeout(200);
+
 await p.keyboard.press('F2'); await p.waitForTimeout(500);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(250);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(350);
@@ -66,5 +91,5 @@ await shot('11-split-tender-credit');
 console.log('SUMMARY:', (await p.textContent('.cntr-tender-summary')).replace(/\s+/g, ' ').trim());
 
 await b.close();
-console.log(failures === 0 ? `ALL PASS (${names.length + 1} checks)` : `${failures} FAILURE(S)`);
+console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -182,6 +182,22 @@
 	}
 
 	/**
+	 * A2 — none of the till's modals are real <form> elements (no native
+	 * Enter-to-submit), so every text input that has one obvious next action
+	 * needs it bound explicitly. Swallows the keystroke so it never falls
+	 * through to the scanner/global keydown listener behind the modal.
+	 */
+	function submitOnEnter(el, handler) {
+		if (!el) return;
+		el.addEventListener('keydown', (e) => {
+			if ('Enter' === e.key) {
+				e.preventDefault();
+				handler();
+			}
+		});
+	}
+
+	/**
 	 * U2 — "format money as ৳ 1,425.00 consistently — the Reports screen's
 	 * raw 4-decimal output is the counter-example to avoid." Every DISPLAY
 	 * of an amount goes through this; the underlying decimal strings
@@ -1941,6 +1957,7 @@
 			input.focus();
 			input.select();
 		}
+		submitOnEnter(input, submitQtyPrompt);
 		const applyBtn = document.getElementById('cntr-qty-apply');
 		if (applyBtn) applyBtn.addEventListener('click', submitQtyPrompt);
 		const cancelBtn = document.getElementById('cntr-qty-cancel');
@@ -2082,6 +2099,9 @@
 		root.hidden = false;
 		const amountInput = document.getElementById('cntr-discount-amount');
 		if (amountInput) amountInput.focus();
+		submitOnEnter(amountInput, submitLineDiscount);
+		submitOnEnter(document.getElementById('cntr-discount-pct'), submitLineDiscount);
+		submitOnEnter(document.getElementById('cntr-override-price'), submitPriceOverride);
 		const applyBtn = document.getElementById('cntr-discount-apply');
 		if (applyBtn) applyBtn.addEventListener('click', submitLineDiscount);
 		const overrideBtn = document.getElementById('cntr-override-apply');
@@ -2179,6 +2199,7 @@
 		root.hidden = false;
 		const input = document.getElementById('cntr-no-sale-reason');
 		if (input) input.focus();
+		submitOnEnter(input, submitNoSale);
 		const submitBtn = document.getElementById('cntr-no-sale-submit');
 		if (submitBtn) submitBtn.addEventListener('click', submitNoSale);
 		const cancelBtn = document.getElementById('cntr-no-sale-cancel');
@@ -2308,6 +2329,9 @@
 		root.hidden = false;
 		const nameInput = document.getElementById('cntr-quick-add-name');
 		if (nameInput) nameInput.focus();
+		['cntr-quick-add-name', 'cntr-quick-add-price', 'cntr-quick-add-barcode', 'cntr-quick-add-qty'].forEach((id) =>
+			submitOnEnter(document.getElementById(id), submitQuickAddForm)
+		);
 		const submitBtn = document.getElementById('cntr-quick-add-submit');
 		if (submitBtn) submitBtn.addEventListener('click', submitQuickAddForm);
 		const cancelBtn = document.getElementById('cntr-quick-add-cancel');
@@ -2561,6 +2585,7 @@
 
 		const phoneInput = document.getElementById('cntr-customer-phone');
 		if (phoneInput) phoneInput.focus();
+		submitOnEnter(phoneInput, submitCustomerLookup);
 
 		const lookupBtn = document.getElementById('cntr-customer-lookup');
 		if (lookupBtn) lookupBtn.addEventListener('click', submitCustomerLookup);

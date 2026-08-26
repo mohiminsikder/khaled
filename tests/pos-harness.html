@@ -17,7 +17,14 @@ window.CNTR = {
   weightBarcodePrefix: '2',
   searchFields: 'sku,barcode,name',
   discountCeilingPct: '10',
-  roundingStep: '1'
+  roundingStep: '1',
+  caps: {
+    cntr_discount_line: true,
+    cntr_no_sale: true,
+    cntr_void_line: true,
+    cntr_manage_stock: true,
+    cntr_price_override: true
+  }
 };
 
 // ---- Fixture catalogue. NOTE: catalog payload barcode is always '' in
@@ -53,6 +60,7 @@ window.fetch = async (url, opts = {}) => {
   if (u.includes('/customers/lookup')) return J([{ phone_norm:'8801711223344', customer_id:44, display_name:'Karim Uddin', last_order_at:'2026-08-19 18:22:00' }]);
   if (u.match(/\/customers\/\d+\/profile/)) return J(CUSTOMER);
   if (u.includes('/sale')) return J({ order_id: 9001, receipt_no: 'R1-000042-0007', html: '<p>receipt</p>' });
+  if (u.includes('/quick-add')) return J({ product_id: 9101 });
   return J({});
 };
 window.print = () => {};
