@@ -29,6 +29,8 @@ class Dashboard {
 			<h1><?php esc_html_e( 'Dashboard', 'counter' ); ?></h1>
 			<p><?php echo esc_html( sprintf( /* translators: %s: yesterday's date */ __( 'Yesterday — %s', 'counter' ), $data['day'] ) ); ?></p>
 
+			<?php self::render_till_links_panel(); ?>
+
 			<div class="cntr-dash-panels" style="display:flex;gap:24px;flex-wrap:wrap;">
 
 				<div class="cntr-dash-panel postbox" style="padding:16px;min-width:260px;">
@@ -74,6 +76,63 @@ class Dashboard {
 				</div>
 
 			</div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * A5 — the till otherwise has no link anywhere. One row per active
+	 * register (a shop with more than one till bookmarks each to its own
+	 * register, per §6's manual pass), its real /pos/?register=<id> URL —
+	 * templates/pos.php already reads that query var and falls back to the
+	 * first active register without it — and a copy control so a real
+	 * cashier's bookmark is exact, not retyped by hand.
+	 */
+	private static function render_till_links_panel(): void {
+		$registers = \Counter\Pos\Registers::all( 'active' );
+		?>
+		<div class="cntr-dash-panel postbox" style="padding:16px;margin-bottom:24px;">
+			<h2><?php esc_html_e( 'The till', 'counter' ); ?></h2>
+			<?php if ( empty( $registers ) ) : ?>
+				<p><?php esc_html_e( 'No active register yet.', 'counter' ); ?></p>
+			<?php else : ?>
+				<table class="widefat" style="max-width:640px;">
+					<tbody>
+						<?php foreach ( $registers as $register ) : ?>
+							<?php $url = add_query_arg( 'register', (int) $register['id'], home_url( '/pos/' ) ); ?>
+							<tr>
+								<td><?php echo esc_html( $register['name'] ); ?></td>
+								<td><code class="cntr-till-url"><?php echo esc_html( $url ); ?></code></td>
+								<td>
+									<a href="<?php echo esc_url( $url ); ?>" class="button" target="_blank" rel="noopener">
+										<?php esc_html_e( 'Open', 'counter' ); ?>
+									</a>
+									<button type="button" class="button cntr-till-copy" data-url="<?php echo esc_attr( $url ); ?>">
+										<?php esc_html_e( 'Copy link', 'counter' ); ?>
+									</button>
+								</td>
+							</tr>
+						<?php endforeach; ?>
+					</tbody>
+				</table>
+				<script>
+				document.querySelectorAll('.cntr-till-copy').forEach(function (btn) {
+					btn.addEventListener('click', function () {
+						var url = btn.getAttribute('data-url');
+						var done = function () {
+							var original = btn.textContent;
+							btn.textContent = <?php echo wp_json_encode( __( 'Copied', 'counter' ) ); ?>;
+							setTimeout(function () { btn.textContent = original; }, 1500);
+						};
+						if (navigator.clipboard && navigator.clipboard.writeText) {
+							navigator.clipboard.writeText(url).then(done, done);
+						} else {
+							done();
+						}
+					});
+				});
+				</script>
+			<?php endif; ?>
 		</div>
 		<?php
 	}

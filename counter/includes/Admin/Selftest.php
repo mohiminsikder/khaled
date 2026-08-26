@@ -203,6 +203,7 @@ class Selftest {
 		$this->test_rollup();
 		$this->test_reports_channel();
 		$this->test_dashboard();
+		$this->test_pos_entry_points();
 		$this->test_expenses();
 		$this->test_pin();
 		$this->test_attendance();
@@ -7043,6 +7044,84 @@ class Selftest {
 		if ( ! empty( $admins_db ) ) {
 			wp_set_current_user( $original_user_id_db );
 		}
+	}
+
+	// -- A5: test_pos_entry_points() -- 3 checks ---------------------------------
+
+	/**
+	 * A5 — the till otherwise has no link anywhere. Calls
+	 * Menu::add_admin_bar_node() directly against a fresh WP_Admin_Bar
+	 * rather than firing the real 'admin_bar_menu' hook — the same
+	 * isolation test_admin_menu() already documents needing for
+	 * capability-gated registration under a bare `wp eval`'s ambient user,
+	 * without touching the global admin bar this request might otherwise
+	 * have.
+	 */
+	private function test_pos_entry_points(): void {
+		// WP_Admin_Bar is only autoloaded when _wp_admin_bar_init() actually
+		// runs (a real front-end/admin page load with the bar showing) —
+		// never true for a bare `wp eval`, so the class doesn't exist yet.
+		if ( ! class_exists( '\WP_Admin_Bar' ) ) {
+			require_once ABSPATH . WPINC . '/class-wp-admin-bar.php';
+		}
+
+		$original_user_id = get_current_user_id();
+
+		// 1. The dashboard contains a link to home_url('/pos/').
+		$admins = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins ) ) {
+			wp_set_current_user( (int) $admins[0] );
+		}
+		ob_start();
+		\Counter\Admin\Screens\Dashboard::render();
+		$html = ob_get_clean();
+		wp_set_current_user( $original_user_id );
+		$this->check(
+			'test_pos_entry_points: the dashboard contains a link to home_url(\'/pos/\')',
+			str_contains( $html, home_url( '/pos/' ) ),
+			'home_url=' . home_url( '/pos/' ) . ' html_len=' . strlen( $html )
+		);
+
+		// 2. The admin-bar node registers for a user with cntr_use_pos.
+		$cashier_id = wp_insert_user(
+			[
+				'user_login' => 'cntr_selftest_entrypoint_cashier_' . wp_generate_password( 6, false ),
+				'user_pass'  => wp_generate_password( 20 ),
+				'role'       => Capabilities::ROLE_CASHIER,
+			]
+		);
+		if ( ! is_wp_error( $cashier_id ) ) {
+			$this->employee_user_fixture_ids[] = (int) $cashier_id;
+			wp_set_current_user( (int) $cashier_id );
+		}
+		$bar_with = new \WP_Admin_Bar();
+		\Counter\Admin\Menu::add_admin_bar_node( $bar_with );
+		$this->check(
+			'test_pos_entry_points: the admin-bar node registers for a user with cntr_use_pos',
+			! is_wp_error( $cashier_id ) && null !== $bar_with->get_node( 'cntr-till' ),
+			is_wp_error( $cashier_id ) ? $cashier_id->get_error_message() : wp_json_encode( $bar_with->get_node( 'cntr-till' ) )
+		);
+
+		// 3. Absent without it — a bare subscriber, neither cntr_use_pos nor cntr_terminal_access.
+		$outsider_id = wp_insert_user(
+			[
+				'user_login' => 'cntr_selftest_entrypoint_outsider_' . wp_generate_password( 6, false ),
+				'user_pass'  => wp_generate_password( 20 ),
+				'role'       => 'subscriber',
+			]
+		);
+		if ( ! is_wp_error( $outsider_id ) ) {
+			$this->employee_user_fixture_ids[] = (int) $outsider_id;
+			wp_set_current_user( (int) $outsider_id );
+		}
+		$bar_without = new \WP_Admin_Bar();
+		\Counter\Admin\Menu::add_admin_bar_node( $bar_without );
+		$this->check(
+			'test_pos_entry_points: the admin-bar node is absent without cntr_use_pos or cntr_terminal_access',
+			! is_wp_error( $outsider_id ) && null === $bar_without->get_node( 'cntr-till' )
+		);
+
+		wp_set_current_user( $original_user_id );
 	}
 
 	// -- P5.4: test_expenses() -- 7 checks ----------------------------------------

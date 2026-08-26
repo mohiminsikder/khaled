@@ -77,6 +77,16 @@ the actual fix is the one-line data flip above. Filed here as more evidence for 
 `wp counter selftest` run — chiefly the DOM harness, now working locally (see `docs/decisions.md`),
 which covers A1/A2 without needing the live PHP suite at all.
 
+**Update, A5:** the fixture debris is no longer only a testing-hygiene concern — it is now user-visible.
+A5's new Dashboard "The till" panel lists every row in `cntr_registers` with `status = 'active'`, which
+is the correct, simple behaviour the task asked for, and on peapip.com right now that includes real
+Register 1 followed by dozens of `Counter Load Test Register N` rows (part of the 65 counted earlier).
+A real shop owner opening this panel today would see a wall of fake registers before finding their own.
+Not filtered by name pattern here — that would be guessing at "real vs fixture" by a fragile heuristic,
+the wrong fix for what is actually a data-cleanliness problem. Reinforces the same recommendation:
+whoever cleans up the fixture debris should do it before A5 (or the till itself) is put in front of a
+real owner.
+
 ## Live-server fixture debris — a crashed run never reaches cleanup()
 
 **Date** 2026-08-26

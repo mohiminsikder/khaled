@@ -66,6 +66,31 @@ class Menu {
 		// what already exists.
 		add_action( 'admin_menu', [ self::class, 'reorder' ], 999 );
 		add_action( 'admin_head', [ self::class, 'print_group_style' ] );
+		// A5 — the till otherwise has no link anywhere; a cashier who can
+		// use it but can't manage settings never even sees the Counter
+		// admin menu (gated on cntr_manage_settings above). 100: after
+		// WordPress's own core nodes so this doesn't fight for position.
+		add_action( 'admin_bar_menu', [ self::class, 'add_admin_bar_node' ], 100 );
+	}
+
+	/**
+	 * Gated on cntr_use_pos OR cntr_terminal_access — a real cashier has the
+	 * former, the till's own machine account (which never sees wp-admin at
+	 * all, `read` stripped in Capabilities::sync_role()) the latter; either
+	 * is sufficient reason to show a way to the till, not just admins.
+	 */
+	public static function add_admin_bar_node( \WP_Admin_Bar $admin_bar ): void {
+		if ( ! current_user_can( 'cntr_use_pos' ) && ! current_user_can( 'cntr_terminal_access' ) ) {
+			return;
+		}
+		$admin_bar->add_node(
+			[
+				'id'    => 'cntr-till',
+				'title' => __( 'Till', 'counter' ),
+				'href'  => home_url( '/pos/' ),
+				'meta'  => [ 'title' => __( 'Open the Counter till', 'counter' ) ],
+			]
+		);
 	}
 
 	public static function register(): void {
