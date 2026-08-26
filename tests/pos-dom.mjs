@@ -1,0 +1,39 @@
+import { chromium } from 'playwright-core';
+const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
+const p=await b.newPage({viewport:{width:1360,height:880},deviceScaleFactor:2});
+p.on('pageerror',e=>console.log('PAGEERROR:',e.message));
+await p.goto('file://'+process.cwd()+'/pos-harness.html');
+await p.waitForTimeout(1400);
+const shot=async n=>{await p.screenshot({path:n+'.png'});console.log('shot',n);};
+const cart=async()=>p.$$eval('.cntr-pos-cart li',e=>e.length).catch(()=>0);
+
+await p.keyboard.press('F6'); await p.waitForTimeout(300);
+await p.click('#cntr-customer-phone');
+await p.keyboard.type('01711223344',{delay:50});
+await p.click('#cntr-customer-lookup'); await p.waitForTimeout(900);
+for (const q of ['Chinigura','Soyabin','Sugar']) {
+  await p.click('#cntr-search');
+  const cur = await p.inputValue('#cntr-search');
+  if (cur) for (let i=0;i<cur.length;i++) await p.keyboard.press('Backspace');
+  await p.keyboard.type(q,{delay:80});
+  await p.waitForTimeout(350);
+  await p.keyboard.press('Enter'); await p.waitForTimeout(300);
+  if (await p.inputValue('#cntr-search')) { await p.keyboard.press('Enter'); await p.waitForTimeout(300); }
+}
+console.log('cart:', await cart(), (await p.textContent('.cntr-pos-total')).trim());
+await shot('10-billing-cart');
+
+await p.keyboard.press('F2'); await p.waitForTimeout(500);
+await p.click('#cntr-tender-add-row'); await p.waitForTimeout(250);
+await p.click('#cntr-tender-add-row'); await p.waitForTimeout(350);
+const setRow = async (i, method, amt) => {
+  if (method) { await p.selectOption(`.cntr-tender-row:nth-of-type(${i+1}) .cntr-tender-row-method`, method); await p.waitForTimeout(300); }
+  await p.fill(`.cntr-tender-row:nth-of-type(${i+1}) .cntr-tender-row-amount`, amt); await p.waitForTimeout(300);
+};
+await setRow(0, null, '500');
+await setRow(1, 'bkash', '200');
+await setRow(2, 'credit', '240');
+await p.click('h2').catch(()=>{}); await p.waitForTimeout(500);
+await shot('11-split-tender-credit');
+console.log('SUMMARY:', (await p.textContent('.cntr-tender-summary')).replace(/\s+/g,' ').trim());
+process.exit(0);

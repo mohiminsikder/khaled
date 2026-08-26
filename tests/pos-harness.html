@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Counter till harness</title>
+<link rel="stylesheet" href="pos.css">
+<script>
+// ---- Bootstrap exactly as templates/pos.php prints it -------------------
+window.CNTR = {
+  restUrl: 'https://shop.test/wp-json/counter/v1',
+  nonce: 'harness',
+  version: '0.1.20',
+  userId: 7,
+  defaultLocationId: 1,
+  registerId: 1,
+  registerPrefix: 'R1',
+  shiftId: 0,
+  weightBarcodePrefix: '2',
+  searchFields: 'sku,barcode,name',
+  discountCeilingPct: '10',
+  roundingStep: '1'
+};
+
+// ---- Fixture catalogue. NOTE: catalog payload barcode is always '' in
+//      v0.1.20, so the scannable code is the SKU. Mirrored here. ---------
+const CATALOG = [
+  {id:101,parent_id:0,sku:'8901234567894',barcode:'',name:'Chinigura Rice 5kg',name_bn:'চিনিগুঁড়া চাল ৫কেজি',price:'620.0000',tax_class:'',units:[],sellable_qty:'40.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
+  {id:102,parent_id:0,sku:'8901234567900',barcode:'',name:'Soyabin Oil 1L',name_bn:'সয়াবিন তেল ১লিটার',price:'185.0000',tax_class:'',units:[],sellable_qty:'60.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
+  {id:103,parent_id:0,sku:'8901234567917',barcode:'',name:'Atta 2kg',name_bn:'আটা ২কেজি',price:'145.0000',tax_class:'',units:[],sellable_qty:'25.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
+  {id:104,parent_id:0,sku:'8901234567924',barcode:'',name:'Miniket Rice 25kg',name_bn:'মিনিকেট চাল ২৫কেজি',price:'2450.0000',tax_class:'',units:[],sellable_qty:'12.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
+  {id:105,parent_id:0,sku:'8901234567931',barcode:'',name:'Basmati Rice 1kg',name_bn:'বাসমতি চাল ১কেজি',price:'320.0000',tax_class:'',units:[],sellable_qty:'18.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
+  {id:106,parent_id:0,sku:'8901234567948',barcode:'',name:'Sugar 1kg',name_bn:'চিনি ১কেজি',price:'135.0000',tax_class:'',units:[],sellable_qty:'50.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''},
+  {id:107,parent_id:0,sku:'8901234567955',barcode:'',name:'Red Lentil 1kg',name_bn:'মসুর ডাল ১কেজি',price:'165.0000',tax_class:'',units:[],sellable_qty:'32.0000',manage_stock:true,backorders:'no',category_ids:[12],image_thumb:''}
+];
+
+const CUSTOMER = {
+  customer_id: 44, display_name: 'Karim Uddin', phone: '01711223344',
+  balance: '4200.0000', credit_limit: '10000.0000', available: '5800.0000',
+  oldest_due_days: 34, can_credit: true,
+  usual_items: [
+    {product_id:101,variation_id:0,name:'Chinigura Rice 5kg',sku:'8901234567894',price:'620.0000',times_bought:14},
+    {product_id:102,variation_id:0,name:'Soyabin Oil 1L',sku:'8901234567900',price:'185.0000',times_bought:11},
+    {product_id:103,variation_id:0,name:'Atta 2kg',sku:'8901234567917',price:'145.0000',times_bought:9},
+    {product_id:106,variation_id:0,name:'Sugar 1kg',sku:'8901234567948',price:'135.0000',times_bought:7}
+  ]
+};
+
+window.__req = [];
+window.fetch = async (url, opts = {}) => {
+  const u = String(url); window.__req.push({ url: u, opts });
+  const J = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json' } });
+  if (u.includes('/shift/current')) return J({ shift: { id: 42, register_id: 1, opened_at: '2026-08-26 09:00:00' } });
+  if (u.includes('/catalog'))       return J({ cursor: 7, changed: CATALOG, removed: [] });
+  if (u.includes('/customers/lookup')) return J([{ phone_norm:'8801711223344', customer_id:44, display_name:'Karim Uddin', last_order_at:'2026-08-19 18:22:00' }]);
+  if (u.match(/\/customers\/\d+\/profile/)) return J(CUSTOMER);
+  if (u.includes('/sale')) return J({ order_id: 9001, receipt_no: 'R1-000042-0007', html: '<p>receipt</p>' });
+  return J({});
+};
+window.print = () => {};
+</script>
+</head>
+<body class="cntr-pos-body">
+<div id="cntr-pos-root" aria-live="polite"></div>
+<script src="pos.js"></script>
+</body></html>
