@@ -8,3 +8,6 @@ id_ed25519*
 # Local scratch
 node_modules/
 *.log
+
+# DOM harness run output — regenerated every run, not source.
+tests/*.png

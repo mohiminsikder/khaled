@@ -1,0 +1,9 @@
+{
+  "name": "counter-till-tests",
+  "private": true,
+  "description": "Test-only tooling for tests/pos-dom.mjs — never shipped with the plugin.",
+  "type": "commonjs",
+  "devDependencies": {
+    "playwright-core": "^1.62.1"
+  }
+}

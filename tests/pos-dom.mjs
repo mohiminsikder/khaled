@@ -1,5 +1,6 @@
 import { chromium } from 'playwright-core';
-const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome',args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
+const execPath = process.env.PW_CHROME_PATH || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+const b=await chromium.launch({executablePath:execPath,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu']});
 const p=await b.newPage({viewport:{width:1360,height:880},deviceScaleFactor:2});
 p.on('pageerror',e=>console.log('PAGEERROR:',e.message));
 await p.goto('file://'+process.cwd()+'/pos-harness.html');
