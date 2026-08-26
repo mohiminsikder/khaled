@@ -1,0 +1,1630 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: Counter\n"
+"Report-Msgid-Bugs-To: \n"
+"Language: bn_BD\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Domain: counter\n"
+
+msgid "%1$d returns, total %2$s"
+msgstr "%1$d টি ফেরত, মোট %2$s"
+
+msgid "%1$d sales, total %2$s"
+msgstr "%1$d টি বিক্রয়, মোট %2$s"
+
+msgid "%s cannot be sold in a fractional quantity."
+msgstr "%s ভগ্নাংশ পরিমাণে বিক্রি করা যাবে না।"
+
+msgid "+ Add field"
+msgstr "+ ফিল্ড যোগ করুন"
+
+msgid "1–30"
+msgstr "১–৩০"
+
+msgid "31–60"
+msgstr "৩১–৬০"
+
+msgid "61–90"
+msgstr "৬১–৯০"
+
+msgid "90+"
+msgstr "৯০+"
+
+msgid "A %1$s template must include: %2$s"
+msgstr "একটি %1$s টেমপ্লেটে অবশ্যই থাকতে হবে: %2$s"
+
+msgid "A PIN must be 4 to 6 digits."
+msgstr "পিন অবশ্যই ৪ থেকে ৬ সংখ্যার হতে হবে।"
+
+msgid "A category with this code already exists."
+msgstr "এই কোড দিয়ে একটি ক্যাটাগরি ইতিমধ্যে বিদ্যমান।"
+
+msgid "A client UUID is required."
+msgstr "একটি ক্লায়েন্ট UUID আবশ্যক।"
+
+msgid "A clock-out cannot be before its own clock-in."
+msgstr "ক্লক-আউট তার নিজের ক্লক-ইনের আগে হতে পারে না।"
+
+msgid "A correction writes a new ledger move; it never edits a balance. Pick a reason honestly — \"adjust\" is a generic correction (a miscount, a data-entry fix), \"waste\" and \"damage\" are shrinkage with a cause."
+msgstr "একটি সংশোধন একটি নতুন লেজার মুভ লেখে; এটি কখনো ব্যালেন্স এডিট করে না। সৎভাবে একটি কারণ বেছে নিন — \"adjust\" হলো একটি সাধারণ সংশোধন (গণনার ভুল, ডেটা-এন্ট্রির ত্রুটি), \"waste\" এবং \"damage\" হলো কারণসহ ক্ষতি (শ্রিংকেজ)।"
+
+msgid "A field box cannot start outside the label."
+msgstr "একটি ফিল্ড বক্স লেবেলের বাইরে থেকে শুরু হতে পারে না।"
+
+msgid "A field box does not fit inside the label."
+msgstr "একটি ফিল্ড বক্স লেবেলের ভেতরে ধরে না।"
+
+msgid "A half-day request must be a single date."
+msgstr "একটি হাফ-ডে অনুরোধ অবশ্যই একটি নির্দিষ্ট তারিখের হতে হবে।"
+
+msgid "A name and a positive price are required."
+msgstr "একটি নাম এবং একটি পজিটিভ মূল্য আবশ্যক।"
+
+msgid "A note is required for an adjustment of this value."
+msgstr "এই মানের সমন্বয়ের জন্য একটি নোট আবশ্যক।"
+
+msgid "A payment account is required."
+msgstr "একটি পেমেন্ট অ্যাকাউন্ট আবশ্যক।"
+
+msgid "A payment account needs both a name and a code."
+msgstr "একটি পেমেন্ট অ্যাকাউন্টের জন্য নাম ও কোড উভয়ই প্রয়োজন।"
+
+msgid "A payroll run for this period already exists."
+msgstr "এই সময়কালের জন্য একটি পেরোল রান ইতিমধ্যে বিদ্যমান।"
+
+msgid "A payroll run must name an active payment account."
+msgstr "একটি পেরোল রানে অবশ্যই একটি সক্রিয় পেমেন্ট অ্যাকাউন্ট উল্লেখ থাকতে হবে।"
+
+msgid "A price group needs both a name and a code."
+msgstr "একটি মূল্য গ্রুপের জন্য নাম ও কোড উভয়ই প্রয়োজন।"
+
+msgid "A purchase order needs at least one line."
+msgstr "একটি ক্রয় আদেশে অন্তত একটি লাইন থাকা প্রয়োজন।"
+
+msgid "A recurring expense lands here first. Nothing here affects the profit and loss until confirmed."
+msgstr "একটি পুনরাবৃত্ত খরচ প্রথমে এখানে আসে। নিশ্চিত না হওয়া পর্যন্ত এখানে কিছুই লাভ-ক্ষতিকে প্রভাবিত করে না।"
+
+msgid "A sale a terminal could not complete, even after retrying — a deleted product, a variation that no longer exists, or a server rejection that will never resolve on its own. Re-key the sale at the till, or book it manually another way, then resolve the row below."
+msgstr "একটি বিক্রয় যা টার্মিনাল পুনঃচেষ্টার পরও সম্পন্ন করতে পারেনি — একটি মুছে ফেলা পণ্য, একটি ভ্যারিয়েশন যা আর নেই, অথবা এমন একটি সার্ভার প্রত্যাখ্যান যা নিজে থেকে কখনো সমাধান হবে না। টিলে বিক্রয়টি আবার এন্ট্রি করুন, অথবা অন্য কোনোভাবে ম্যানুয়ালি হিসাব রাখুন, তারপর নিচের সারিটি সমাধান করুন।"
+
+msgid "A sale that drained a location below zero — two registers, offline at the same time, both sold the last unit. The sale was still accepted; the goods physically left the shop. Reconcile the shortfall (a restock, a write-off, a corrected count) and resolve the row below."
+msgstr "একটি বিক্রয় যা একটি লোকেশনের স্টক শূন্যের নিচে নামিয়ে দিয়েছে — দুটি রেজিস্টার, একই সময়ে অফলাইন, উভয়ই শেষ ইউনিটটি বিক্রি করেছে। বিক্রয়টি তবুও গৃহীত হয়েছে; পণ্য বাস্তবে দোকান থেকে চলে গেছে। ঘাটতি মিলিয়ে নিন (পুনরায় স্টক করা, রাইট-অফ, অথবা সংশোধিত গণনা) এবং নিচের সারিটি সমাধান করুন।"
+
+msgid "A similarly-named supplier already exists."
+msgstr "একই রকম নামের একজন সরবরাহকারী ইতিমধ্যে বিদ্যমান।"
+
+msgid "A supplier name is required."
+msgstr "সরবরাহকারীর নাম আবশ্যক।"
+
+msgid "A template name is required."
+msgstr "টেমপ্লেটের নাম আবশ্যক।"
+
+msgid "A unit needs at least a code and a name."
+msgstr "একটি এককের জন্য অন্তত একটি কোড ও নাম প্রয়োজন।"
+
+msgid "Account"
+msgstr "অ্যাকাউন্ট"
+
+msgid "Accounts"
+msgstr "অ্যাকাউন্টসমূহ"
+
+msgid "Actions"
+msgstr "অ্যাকশন"
+
+msgid "Add"
+msgstr "যোগ করুন"
+
+msgid "Add an account"
+msgstr "একটি অ্যাকাউন্ট যোগ করুন"
+
+msgid "Add category"
+msgstr "ক্যাটাগরি যোগ করুন"
+
+msgid "Add line p50 / p95 (ms)"
+msgstr "লাইন যোগ করা p50 / p95 (ms)"
+
+msgid "Add recurring rule"
+msgstr "পুনরাবৃত্ত নিয়ম যোগ করুন"
+
+msgid "Adjust Stock"
+msgstr "স্টক সমন্বয়"
+
+msgid "Age (hrs)"
+msgstr "বয়স (ঘণ্টা)"
+
+msgid "All channels"
+msgstr "সব চ্যানেল"
+
+msgid "Allowances"
+msgstr "ভাতা"
+
+msgid "Amount"
+msgstr "পরিমাণ"
+
+msgid "An attendance record already exists for this employee and date."
+msgstr "এই কর্মচারী ও তারিখের জন্য একটি হাজিরার রেকর্ড ইতিমধ্যে বিদ্যমান।"
+
+msgid "An employee needs a code."
+msgstr "একজন কর্মচারীর জন্য একটি কোড প্রয়োজন।"
+
+msgid "An employee needs a real WordPress user."
+msgstr "একজন কর্মচারীর জন্য একটি প্রকৃত ওয়ার্ডপ্রেস ইউজার প্রয়োজন।"
+
+msgid "An expense amount must be greater than zero."
+msgstr "খরচের পরিমাণ অবশ্যই শূন্যের চেয়ে বেশি হতে হবে।"
+
+msgid "An expense needs a real date."
+msgstr "একটি খরচের জন্য একটি প্রকৃত তারিখ প্রয়োজন।"
+
+msgid "Any status"
+msgstr "যেকোনো স্ট্যাটাস"
+
+msgid "Approve"
+msgstr "অনুমোদন করুন"
+
+msgid "At least one tender is required."
+msgstr "অন্তত একটি পেমেন্ট পদ্ধতি আবশ্যক।"
+
+msgid "Attempts"
+msgstr "চেষ্টা"
+
+msgid "Attendance"
+msgstr "হাজিরা"
+
+msgid "Avg basket"
+msgstr "গড় বাস্কেট"
+
+msgid "Back to aging"
+msgstr "এজিং-এ ফিরুন"
+
+msgid "Balance after"
+msgstr "পরবর্তী ব্যালেন্স"
+
+msgid "Book"
+msgstr "বুক করুন"
+
+msgid "Book an expense"
+msgstr "একটি খরচ বুক করুন"
+
+msgid "COGS"
+msgstr "COGS"
+
+msgid "Cancel"
+msgstr "বাতিল করুন"
+
+msgid "Cannot issue a challan for an order that does not exist."
+msgstr "অস্তিত্বহীন একটি অর্ডারের জন্য চালান ইস্যু করা যাবে না।"
+
+msgid "Cannot receive more than is outstanding on this line."
+msgstr "এই লাইনে অবশিষ্ট পরিমাণের চেয়ে বেশি গ্রহণ করা যাবে না।"
+
+msgid "Categories"
+msgstr "ক্যাটাগরিসমূহ"
+
+msgid "Category"
+msgstr "ক্যাটাগরি"
+
+msgid "Change: %s"
+msgstr "ফেরত: %s"
+
+msgid "Channel"
+msgstr "চ্যানেল"
+
+msgid "Client-side terminal timings, posted once per day from each till. Targets: lookup p95 < 5ms, add-line < 16ms, POST round-trip p95 < 400ms, scan-to-receipt < 10s for a twenty-item basket."
+msgstr "ক্লায়েন্ট-সাইড টার্মিনাল টাইমিং, প্রতিটি টিল থেকে দিনে একবার পোস্ট করা হয়। লক্ষ্যমাত্রা: লুকআপ p95 < ৫ms, লাইন যোগ < ১৬ms, POST রাউন্ড-ট্রিপ p95 < ৪০০ms, বিশটি পণ্যের বাস্কেটের জন্য স্ক্যান-টু-রিসিপ্ট < ১০ সেকেন্ড।"
+
+msgid "Clock in"
+msgstr "ক্লক ইন"
+
+msgid "Clock out"
+msgstr "ক্লক আউট"
+
+msgid "Closed"
+msgstr "বন্ধ"
+
+msgid "Code"
+msgstr "কোড"
+
+msgid "Columns"
+msgstr "কলাম"
+
+msgid "Columns: employee_code, work_date (Y-m-d), clock_in (H:i), clock_out (H:i)."
+msgstr "কলাম: employee_code, work_date (Y-m-d), clock_in (H:i), clock_out (H:i)।"
+
+msgid "Confirm"
+msgstr "নিশ্চিত করুন"
+
+msgid "Could not save this account."
+msgstr "এই অ্যাকাউন্টটি সংরক্ষণ করা যায়নি।"
+
+msgid "Could not save this price group."
+msgstr "এই মূল্য গ্রুপটি সংরক্ষণ করা যায়নি।"
+
+msgid "Could not save this template."
+msgstr "এই টেমপ্লেটটি সংরক্ষণ করা যায়নি।"
+
+msgid "Count"
+msgstr "গণনা"
+
+msgid "Counted cash"
+msgstr "গণনাকৃত নগদ"
+
+msgid "Counter"
+msgstr "Counter"
+
+msgid "Counter Cashier"
+msgstr "Counter ক্যাশিয়ার"
+
+msgid "Counter Manager"
+msgstr "Counter ম্যানেজার"
+
+msgid "Counter Stockkeeper"
+msgstr "Counter স্টককিপার"
+
+msgid "Counter Supervisor"
+msgstr "Counter সুপারভাইজার"
+
+msgid "Counter Terminal"
+msgstr "Counter টার্মিনাল"
+
+msgid "Counter requires WooCommerce to be installed and active."
+msgstr "Counter-এর জন্য WooCommerce ইনস্টল ও সক্রিয় থাকা আবশ্যক।"
+
+msgid "Counter tender breakdown — "
+msgstr "Counter পেমেন্ট বিবরণ — "
+
+msgid "Counter — Adjust Stock"
+msgstr "Counter — স্টক সমন্বয়"
+
+msgid "Counter — Calibration Sheet"
+msgstr "Counter — ক্যালিব্রেশন শীট"
+
+msgid "Counter — Customer Statement"
+msgstr "Counter — গ্রাহক স্টেটমেন্ট"
+
+msgid "Counter — Health"
+msgstr "Counter — হেলথ"
+
+msgid "Counter — Label Designer"
+msgstr "Counter — লেবেল ডিজাইনার"
+
+msgid "Counter — Performance"
+msgstr "Counter — পারফরম্যান্স"
+
+msgid "Counter — Print Labels"
+msgstr "Counter — লেবেল প্রিন্ট"
+
+msgid "Counter — Receivables (Aging)"
+msgstr "Counter — প্রাপ্য (এজিং)"
+
+msgid "Counter — Z-report"
+msgstr "Counter — জেড-রিপোর্ট"
+
+msgid "Counter: process every return through the POS terminal, not here. A refund issued in WooCommerce admin alone leaves stock and the profit-and-loss wrong."
+msgstr "Counter: প্রতিটি রিটার্ন POS টার্মিনালের মাধ্যমে প্রসেস করুন, এখানে নয়। শুধু WooCommerce অ্যাডমিন থেকে রিফান্ড দিলে স্টক ও লাভ-ক্ষতির হিসাব ভুল থেকে যাবে।"
+
+msgid "Created"
+msgstr "তৈরি হয়েছে"
+
+msgid "Credit note amount must be greater than zero."
+msgstr "ক্রেডিট নোটের পরিমাণ অবশ্যই শূন্যের চেয়ে বেশি হতে হবে।"
+
+msgid "Credit sale — order #%d"
+msgstr "বাকি বিক্রয় — অর্ডার #%d"
+
+msgid "Current"
+msgstr "বর্তমান"
+
+msgid "Customer"
+msgstr "গ্রাহক"
+
+msgid "Dashboard"
+msgstr "ড্যাশবোর্ড"
+
+msgid "Date"
+msgstr "তারিখ"
+
+msgid "Days"
+msgstr "দিন"
+
+msgid "Deactivate"
+msgstr "নিষ্ক্রিয় করুন"
+
+msgid "Deductions"
+msgstr "কর্তন"
+
+msgid "Delete"
+msgstr "মুছে ফেলুন"
+
+msgid "Delete this template?"
+msgstr "এই টেমপ্লেটটি মুছে ফেলবেন?"
+
+msgid "Did the drawer balance last night?"
+msgstr "গতকাল রাতে ড্রয়ার মিলেছিল কি?"
+
+msgid "Discount given"
+msgstr "প্রদত্ত ছাড়"
+
+msgid "Discounts above the ceiling"
+msgstr "সীমার ঊর্ধ্বে ছাড়"
+
+msgid "Draft"
+msgstr "খসড়া"
+
+msgid "Draft a run"
+msgstr "একটি রান খসড়া করুন"
+
+msgid "Drafts awaiting confirmation"
+msgstr "নিশ্চিতকরণের অপেক্ষায় খসড়া"
+
+msgid "Earned"
+msgstr "অর্জিত"
+
+msgid "Edit template"
+msgstr "টেমপ্লেট সম্পাদনা করুন"
+
+msgid "Employee"
+msgstr "কর্মচারী"
+
+msgid "Employee not found."
+msgstr "কর্মচারী পাওয়া যায়নি।"
+
+msgid "Every enabled payment gateway resolves to an active account."
+msgstr "সক্রিয় প্রতিটি পেমেন্ট গেটওয়ে একটি সক্রিয় অ্যাকাউন্টের সাথে যুক্ত।"
+
+msgid "Every expense must name a location."
+msgstr "প্রতিটি খরচে অবশ্যই একটি লোকেশন উল্লেখ থাকতে হবে।"
+
+msgid "Every expense must name an active payment account."
+msgstr "প্রতিটি খরচে অবশ্যই একটি সক্রিয় পেমেন্ট অ্যাকাউন্ট উল্লেখ থাকতে হবে।"
+
+msgid "Every minute (Counter queue recovery)"
+msgstr "প্রতি মিনিটে (Counter কিউ রিকভারি)"
+
+msgid "Every purchase order line must be a stock-managed product."
+msgstr "প্রতিটি ক্রয় আদেশের লাইন অবশ্যই একটি স্টক-ব্যবস্থাপিত পণ্য হতে হবে।"
+
+msgid "Every refund on record was processed through the counter."
+msgstr "রেকর্ডে থাকা প্রতিটি রিফান্ড কাউন্টারের মাধ্যমে প্রসেস করা হয়েছে।"
+
+msgid "Every request"
+msgstr "সব অনুরোধ"
+
+msgid "Expected"
+msgstr "প্রত্যাশিত"
+
+msgid "Expected cash"
+msgstr "প্রত্যাশিত নগদ"
+
+msgid "Expense not found."
+msgstr "খরচ পাওয়া যায়নি।"
+
+msgid "Expenses & P&L"
+msgstr "খরচ ও লাভ-ক্ষতি"
+
+msgid "Expenses & profit and loss"
+msgstr "খরচ ও লাভ-ক্ষতি"
+
+msgid "Expenses — Online"
+msgstr "খরচ — অনলাইন"
+
+msgid "Expenses — POS"
+msgstr "খরচ — POS"
+
+msgid "Expenses — Unallocated"
+msgstr "খরচ — অবণ্টিত"
+
+msgid "Export CSV"
+msgstr "CSV এক্সপোর্ট"
+
+msgid "FIFO short: no batch stock remained at this location; costed at last-known price."
+msgstr "FIFO ঘাটতি: এই লোকেশনে কোনো ব্যাচ স্টক অবশিষ্ট ছিল না; সর্বশেষ জানা মূল্যে হিসাব করা হয়েছে।"
+
+msgid "Field"
+msgstr "ফিল্ড"
+
+msgid "Fields"
+msgstr "ফিল্ডসমূহ"
+
+msgid "Fields on one label"
+msgstr "একটি লেবেলে ফিল্ডসমূহ"
+
+msgid "Filter"
+msgstr "ফিল্টার"
+
+msgid "From"
+msgstr "থেকে"
+
+msgid "Fulfilment"
+msgstr "ফুলফিলমেন্ট"
+
+msgid "Fulfilment queue"
+msgstr "ফুলফিলমেন্ট কিউ"
+
+msgid "Gateway mapping"
+msgstr "গেটওয়ে ম্যাপিং"
+
+msgid "Goods received against %s"
+msgstr "%s-এর বিপরীতে গৃহীত পণ্য"
+
+msgid "Gross margin"
+msgstr "গ্রস মার্জিন"
+
+msgid "Half day"
+msgstr "হাফ ডে"
+
+msgid "Health"
+msgstr "হেলথ"
+
+msgid "Horizontal gutter (mm)"
+msgstr "হরাইজন্টাল গাটার (মিমি)"
+
+msgid "How was this resolved?"
+msgstr "এটি কীভাবে সমাধান করা হয়েছে?"
+
+msgid "Import"
+msgstr "ইম্পোর্ট"
+
+msgid "Import from CSV"
+msgstr "CSV থেকে ইম্পোর্ট"
+
+msgid "Imported %1$d row(s), rejected %2$d row(s)."
+msgstr "%1$d টি সারি ইম্পোর্ট হয়েছে, %2$d টি সারি বাতিল হয়েছে।"
+
+msgid "Incorrect PIN."
+msgstr "ভুল পিন।"
+
+msgid "Input VAT (purchases)"
+msgstr "ইনপুট ভ্যাট (ক্রয়)"
+
+msgid "Install::missing() found gaps:"
+msgstr "Install::missing() ফাঁক খুঁজে পেয়েছে:"
+
+msgid "Install::missing() — nothing missing."
+msgstr "Install::missing() — কিছুই অনুপস্থিত নেই।"
+
+msgid "Insufficient stock"
+msgstr "অপর্যাপ্ত স্টক"
+
+msgid "Insufficient stock only"
+msgstr "শুধুমাত্র অপর্যাপ্ত স্টক"
+
+msgid "Invalid date range."
+msgstr "অবৈধ তারিখ পরিসীমা।"
+
+msgid "Item"
+msgstr "আইটেম"
+
+msgid "JavaScript is required to use the till."
+msgstr "টিল ব্যবহার করতে জাভাস্ক্রিপ্ট আবশ্যক।"
+
+msgid "Kind"
+msgstr "ধরন"
+
+msgid "Kind (cash/mfs/card/bank)"
+msgstr "ধরন (cash/mfs/card/bank)"
+
+msgid "Label Designer"
+msgstr "লেবেল ডিজাইনার"
+
+msgid "Label height (mm)"
+msgstr "লেবেলের উচ্চতা (মিমি)"
+
+msgid "Label width (mm)"
+msgstr "লেবেলের প্রস্থ (মিমি)"
+
+msgid "Late sales"
+msgstr "দেরিতে আসা বিক্রয়"
+
+msgid "Leave"
+msgstr "ছুটি"
+
+msgid "Leave request not found."
+msgstr "ছুটির অনুরোধ পাওয়া যায়নি।"
+
+msgid "Left offset — calibration correction (mm)"
+msgstr "বাম অফসেট — ক্যালিব্রেশন সংশোধন (মিমি)"
+
+msgid "Lines"
+msgstr "লাইন"
+
+msgid "Locale must be 10 characters or fewer."
+msgstr "লোকেল অবশ্যই ১০ অক্ষর বা তার কম হতে হবে।"
+
+msgid "Location"
+msgstr "লোকেশন"
+
+msgid "Location id (blank = all)"
+msgstr "লোকেশন আইডি (খালি = সব)"
+
+msgid "Lookup p50 / p95 (ms)"
+msgstr "লুকআপ p50 / p95 (ms)"
+
+msgid "Margin:"
+msgstr "মার্জিন:"
+
+msgid "Merge failed."
+msgstr "মার্জ ব্যর্থ হয়েছে।"
+
+msgid "Method"
+msgstr "পদ্ধতি"
+
+msgid "Minutes"
+msgstr "মিনিট"
+
+msgid "Monthly amount"
+msgstr "মাসিক পরিমাণ"
+
+msgid "Name"
+msgstr "নাম"
+
+msgid "Net"
+msgstr "নিট"
+
+msgid "Net payable"
+msgstr "নিট প্রদেয়"
+
+msgid "Net sales:"
+msgstr "নিট বিক্রয়:"
+
+msgid "New template"
+msgstr "নতুন টেমপ্লেট"
+
+msgid "No WooCommerce payment gateways are currently enabled."
+msgstr "বর্তমানে কোনো WooCommerce পেমেন্ট গেটওয়ে সক্রিয় নেই।"
+
+msgid "No active payment account is configured for \"%s\" — configure one before taking this tender."
+msgstr "\"%s\"-এর জন্য কোনো সক্রিয় পেমেন্ট অ্যাকাউন্ট কনফিগার করা নেই — এই পেমেন্ট পদ্ধতি নেওয়ার আগে একটি কনফিগার করুন।"
+
+msgid "No attendance records for this range."
+msgstr "এই পরিসরের জন্য কোনো হাজিরার রেকর্ড নেই।"
+
+msgid "No closed shifts yet."
+msgstr "এখনো কোনো শিফট বন্ধ হয়নি।"
+
+msgid "No customer currently owes a balance."
+msgstr "বর্তমানে কোনো গ্রাহকের কাছে বকেয়া নেই।"
+
+msgid "No data for this period."
+msgstr "এই সময়কালের জন্য কোনো ডেটা নেই।"
+
+msgid "No issued challan exists for this order."
+msgstr "এই অর্ডারের জন্য ইস্যুকৃত কোনো চালান নেই।"
+
+msgid "No label template exists yet. Create one first."
+msgstr "এখনো কোনো লেবেল টেমপ্লেট নেই। প্রথমে একটি তৈরি করুন।"
+
+msgid "No label templates yet."
+msgstr "এখনো কোনো লেবেল টেমপ্লেট নেই।"
+
+msgid "No open shift on this register."
+msgstr "এই রেজিস্টারে কোনো খোলা শিফট নেই।"
+
+msgid "No payroll runs yet."
+msgstr "এখনো কোনো পেরোল রান নেই।"
+
+msgid "No reason recorded."
+msgstr "কোনো কারণ লেখা নেই।"
+
+msgid "No sales recorded yesterday."
+msgstr "গতকাল কোনো বিক্রয় রেকর্ড করা হয়নি।"
+
+msgid "No shifts closed last night."
+msgstr "গতরাতে কোনো শিফট বন্ধ হয়নি।"
+
+msgid "No terminal has posted a daily summary yet."
+msgstr "এখনো কোনো টার্মিনাল দৈনিক সারাংশ পোস্ট করেনি।"
+
+msgid "No transactions for this customer."
+msgstr "এই গ্রাহকের জন্য কোনো লেনদেন নেই।"
+
+msgid "No-sales"
+msgstr "নো-সেল"
+
+msgid "None."
+msgstr "কোনোটিই না।"
+
+msgid "Not permitted."
+msgstr "অনুমতি নেই।"
+
+msgid "Not signed in."
+msgstr "সাইন ইন করা নেই।"
+
+msgid "Note"
+msgstr "নোট"
+
+msgid "Note: the balance went below zero and is flagged for review."
+msgstr "নোট: ব্যালেন্স শূন্যের নিচে নেমে গেছে এবং পর্যালোচনার জন্য চিহ্নিত করা হয়েছে।"
+
+msgid "Nothing below its low-stock threshold."
+msgstr "লো-স্টক থ্রেশহোল্ডের নিচে কিছু নেই।"
+
+msgid "Nothing here."
+msgstr "এখানে কিছু নেই।"
+
+msgid "Nothing in the queue."
+msgstr "কিউতে কিছু নেই।"
+
+msgid "Nothing to print — no received units, no products selected, or the source no longer exists."
+msgstr "প্রিন্ট করার কিছু নেই — কোনো গৃহীত ইউনিট নেই, কোনো পণ্য নির্বাচিত নেই, অথবা উৎসটি আর নেই।"
+
+msgid "Nothing to receive."
+msgstr "গ্রহণ করার কিছু নেই।"
+
+msgid "OK"
+msgstr "ঠিক আছে"
+
+msgid "Offline Failures"
+msgstr "অফলাইন ব্যর্থতা"
+
+msgid "Offline sale failures"
+msgstr "অফলাইন বিক্রয় ব্যর্থতা"
+
+msgid "Older than (hours)"
+msgstr "এর চেয়ে পুরনো (ঘণ্টা)"
+
+msgid "Online"
+msgstr "অনলাইন"
+
+msgid "Online orders paid through an unmapped gateway: %d"
+msgstr "ম্যাপ করা হয়নি এমন গেটওয়ের মাধ্যমে পরিশোধিত অনলাইন অর্ডার: %d"
+
+msgid "Only a draft expense can be confirmed."
+msgstr "শুধুমাত্র খসড়া খরচ নিশ্চিত করা যায়।"
+
+msgid "Only a draft run can be approved."
+msgstr "শুধুমাত্র খসড়া রান অনুমোদন করা যায়।"
+
+msgid "Only a pending or approved request can be cancelled."
+msgstr "শুধুমাত্র মুলতুবি বা অনুমোদিত অনুরোধ বাতিল করা যায়।"
+
+msgid "Only a permanently failed entry can be resolved."
+msgstr "শুধুমাত্র স্থায়ীভাবে ব্যর্থ এন্ট্রি সমাধান করা যায়।"
+
+msgid "Only an open oversell entry can be resolved."
+msgstr "শুধুমাত্র খোলা ওভারসেল এন্ট্রি সমাধান করা যায়।"
+
+msgid "Open balance"
+msgstr "খোলা ব্যালেন্স"
+
+msgid "Opening balance"
+msgstr "প্রারম্ভিক ব্যালেন্স"
+
+msgid "Opening float"
+msgstr "প্রারম্ভিক ফ্লোট"
+
+msgid "Operator"
+msgstr "অপারেটর"
+
+msgid "Order"
+msgstr "অর্ডার"
+
+msgid "Order not found."
+msgstr "অর্ডার পাওয়া যায়নি।"
+
+msgid "Order vanished after a previous attempt."
+msgstr "পূর্ববর্তী চেষ্টার পর অর্ডারটি হারিয়ে গেছে।"
+
+msgid "Orders"
+msgstr "অর্ডারসমূহ"
+
+msgid "Orders:"
+msgstr "অর্ডার:"
+
+msgid "Output VAT (sales)"
+msgstr "আউটপুট ভ্যাট (বিক্রয়)"
+
+msgid "Oversell Log"
+msgstr "ওভারসেল লগ"
+
+msgid "Oversell entry not found."
+msgstr "ওভারসেল এন্ট্রি পাওয়া যায়নি।"
+
+msgid "Oversell log"
+msgstr "ওভারসেল লগ"
+
+msgid "POS"
+msgstr "POS"
+
+msgid "POST round-trip p50 / p95 (ms)"
+msgstr "POST রাউন্ড-ট্রিপ p50 / p95 (ms)"
+
+msgid "Packing Slip"
+msgstr "প্যাকিং স্লিপ"
+
+msgid "Packing slip"
+msgstr "প্যাকিং স্লিপ"
+
+msgid "Page"
+msgstr "পেজ"
+
+msgid "Page/roll height (mm)"
+msgstr "পেজ/রোলের উচ্চতা (মিমি)"
+
+msgid "Page/roll width (mm)"
+msgstr "পেজ/রোলের প্রস্থ (মিমি)"
+
+msgid "Payment Accounts"
+msgstr "পেমেন্ট অ্যাকাউন্টসমূহ"
+
+msgid "Payment accounts"
+msgstr "পেমেন্ট অ্যাকাউন্টসমূহ"
+
+msgid "Payment amount must be greater than zero."
+msgstr "পেমেন্টের পরিমাণ অবশ্যই শূন্যের চেয়ে বেশি হতে হবে।"
+
+msgid "Payments do not match the order total (difference: %s)."
+msgstr "পেমেন্ট অর্ডারের সর্বমোটের সাথে মিলছে না (পার্থক্য: %s)।"
+
+msgid "Payroll"
+msgstr "পেরোল"
+
+msgid "Payroll run not found."
+msgstr "পেরোল রান পাওয়া যায়নি।"
+
+msgid "Pending your approval"
+msgstr "আপনার অনুমোদনের অপেক্ষায়"
+
+msgid "Performance"
+msgstr "পারফরম্যান্স"
+
+msgid "Period"
+msgstr "সময়কাল"
+
+msgid "Period must be Y-m."
+msgstr "সময়কাল অবশ্যই Y-m ফরম্যাটে হতে হবে।"
+
+msgid "Phone"
+msgstr "ফোন"
+
+msgid "Pick"
+msgstr "পিক করুন"
+
+msgid "Placed"
+msgstr "প্রদত্ত"
+
+msgid "Preview (sample data)"
+msgstr "প্রিভিউ (নমুনা ডেটা)"
+
+msgid "Print"
+msgstr "প্রিন্ট"
+
+msgid "Print a millimetre-grid calibration sheet"
+msgstr "একটি মিলিমিটার-গ্রিড ক্যালিব্রেশন শীট প্রিন্ট করুন"
+
+msgid "Print an updated label"
+msgstr "একটি হালনাগাদ লেবেল প্রিন্ট করুন"
+
+msgid "Print labels (Counter)"
+msgstr "লেবেল প্রিন্ট করুন (Counter)"
+
+msgid "Product"
+msgstr "পণ্য"
+
+msgid "Product %d not found."
+msgstr "পণ্য %d পাওয়া যায়নি।"
+
+msgid "Product ID"
+msgstr "পণ্য আইডি"
+
+msgid "Profit and loss"
+msgstr "লাভ-ক্ষতি"
+
+msgid "Purchase order not found."
+msgstr "ক্রয় আদেশ পাওয়া যায়নি।"
+
+msgid "Qty"
+msgstr "পরিমাণ"
+
+msgid "Quantity change"
+msgstr "পরিমাণ পরিবর্তন"
+
+msgid "Quantity must be greater than zero."
+msgstr "পরিমাণ অবশ্যই শূন্যের চেয়ে বেশি হতে হবে।"
+
+msgid "Queue entry not found."
+msgstr "কিউ এন্ট্রি পাওয়া যায়নি।"
+
+msgid "Reason"
+msgstr "কারণ"
+
+msgid "Reason must be one of: adjust, waste, damage."
+msgstr "কারণ অবশ্যই এর মধ্যে একটি হতে হবে: adjust, waste, damage।"
+
+msgid "Receivables"
+msgstr "প্রাপ্য"
+
+msgid "Reconciliation"
+msgstr "রিকনসিলিয়েশন"
+
+msgid "Records"
+msgstr "রেকর্ডসমূহ"
+
+msgid "Recovered: stock was never applied for this attempt — safe to retry."
+msgstr "পুনরুদ্ধার হয়েছে: এই চেষ্টার জন্য স্টক কখনো প্রয়োগ হয়নি — পুনরায় চেষ্টা করা নিরাপদ।"
+
+msgid "Recovered: the order for this attempt no longer exists."
+msgstr "পুনরুদ্ধার হয়েছে: এই চেষ্টার অর্ডারটি আর নেই।"
+
+msgid "Recurring expenses"
+msgstr "পুনরাবৃত্ত খরচ"
+
+msgid "Ref"
+msgstr "রেফ"
+
+msgid "Refund credited against order #%d"
+msgstr "অর্ডার #%d-এর বিপরীতে রিফান্ড জমা হয়েছে"
+
+msgid "Refund for order #%d"
+msgstr "অর্ডার #%d-এর রিফান্ড"
+
+msgid "Register"
+msgstr "রেজিস্টার"
+
+msgid "Register not found."
+msgstr "রেজিস্টার পাওয়া যায়নি।"
+
+msgid "Reject"
+msgstr "প্রত্যাখ্যান করুন"
+
+msgid "Remove"
+msgstr "সরান"
+
+msgid "Reports"
+msgstr "রিপোর্টসমূহ"
+
+msgid "Request"
+msgstr "অনুরোধ"
+
+msgid "Request leave"
+msgstr "ছুটির অনুরোধ করুন"
+
+msgid "Required for any adjustment above the configured value threshold."
+msgstr "কনফিগার করা মান থ্রেশহোল্ডের ঊর্ধ্বে যেকোনো সমন্বয়ের জন্য আবশ্যক।"
+
+msgid "Resolve"
+msgstr "সমাধান করুন"
+
+msgid "Restored beyond any traceable original sale move for this order."
+msgstr "এই অর্ডারের জন্য কোনো শনাক্তযোগ্য মূল বিক্রয় মুভের বাইরে গিয়ে পুনরুদ্ধার করা হয়েছে।"
+
+msgid "Returns"
+msgstr "রিটার্নসমূহ"
+
+msgid "Returns and refunds"
+msgstr "রিটার্ন ও রিফান্ড"
+
+msgid "Revenue"
+msgstr "রাজস্ব"
+
+msgid "Revenue − COGS = Gross margin. Gross margin − Expenses (channel-tagged, plus a clearly unallocated block) = Net."
+msgstr "রাজস্ব − COGS = গ্রস মার্জিন। গ্রস মার্জিন − খরচ (চ্যানেল-ট্যাগকৃত, এবং একটি স্পষ্টভাবে অবণ্টিত অংশসহ) = নিট।"
+
+msgid "Rounding"
+msgstr "রাউন্ডিং"
+
+msgid "Row %1$d: %2$s"
+msgstr "সারি %1$d: %2$s"
+
+msgid "Rows"
+msgstr "সারি"
+
+msgid "Run"
+msgstr "রান"
+
+msgid "Run #%d lines"
+msgstr "রান #%d-এর লাইন"
+
+msgid "Run self-test"
+msgstr "সেলফ-টেস্ট চালান"
+
+msgid "Running balance"
+msgstr "চলমান ব্যালেন্স"
+
+msgid "Runs"
+msgstr "রানসমূহ"
+
+msgid "Sale failed."
+msgstr "বিক্রয় ব্যর্থ হয়েছে।"
+
+msgid "Sale queue depth by status:"
+msgstr "স্ট্যাটাস অনুযায়ী বিক্রয় কিউর গভীরতা:"
+
+msgid "Sale queue: empty."
+msgstr "বিক্রয় কিউ: খালি।"
+
+msgid "Sales"
+msgstr "বিক্রয়"
+
+msgid "Samples"
+msgstr "নমুনা"
+
+msgid "Save mapping"
+msgstr "ম্যাপিং সংরক্ষণ করুন"
+
+msgid "Save template"
+msgstr "টেমপ্লেট সংরক্ষণ করুন"
+
+msgid "Scan-to-receipt p50 / p95 (ms)"
+msgstr "স্ক্যান-টু-রিসিপ্ট p50 / p95 (ms)"
+
+msgid "Schema"
+msgstr "স্কিমা"
+
+msgid "Self-test"
+msgstr "সেলফ-টেস্ট"
+
+msgid "Sending…"
+msgstr "পাঠানো হচ্ছে…"
+
+msgid "Shift"
+msgstr "শিফট"
+
+msgid "Shift #%d"
+msgstr "শিফট #%d"
+
+msgid "Shift not found."
+msgstr "শিফট পাওয়া যায়নি।"
+
+msgid "Ship to"
+msgstr "প্রাপক"
+
+msgid "Shortfall"
+msgstr "ঘাটতি"
+
+msgid "Source"
+msgstr "উৎস"
+
+msgid "Spreadsheets shaped to feed your VAT consultant or an NBR-approved filing package — not a replacement for either."
+msgstr "স্প্রেডশিট যা আপনার ভ্যাট পরামর্শদাতা বা এনবিআর-অনুমোদিত ফাইলিং প্যাকেজে দেওয়ার উপযোগী করে তৈরি — কোনোটির বিকল্প নয়।"
+
+msgid "Statement"
+msgstr "স্টেটমেন্ট"
+
+msgid "Status"
+msgstr "স্ট্যাটাস"
+
+msgid "Stock"
+msgstr "স্টক"
+
+msgid "Stocktake not found."
+msgstr "স্টকটেক পাওয়া যায়নি।"
+
+msgid "Template deleted."
+msgstr "টেমপ্লেট মুছে ফেলা হয়েছে।"
+
+msgid "Template name"
+msgstr "টেমপ্লেটের নাম"
+
+msgid "Template name must be 120 characters or fewer."
+msgstr "টেমপ্লেটের নাম অবশ্যই ১২০ অক্ষর বা তার কম হতে হবে।"
+
+msgid "Template not found."
+msgstr "টেমপ্লেট পাওয়া যায়নি।"
+
+msgid "Template saved."
+msgstr "টেমপ্লেট সংরক্ষিত হয়েছে।"
+
+msgid "Templates"
+msgstr "টেমপ্লেটসমূহ"
+
+msgid "Tenders"
+msgstr "পেমেন্টসমূহ"
+
+msgid "That line does not belong to this purchase order."
+msgstr "এই লাইনটি এই ক্রয় আদেশের অন্তর্ভুক্ত নয়।"
+
+msgid "The adjustment quantity cannot be zero."
+msgstr "সমন্বয়ের পরিমাণ শূন্য হতে পারে না।"
+
+msgid "The denominations counted (%1$s) do not sum to the counted cash entered (%2$s)."
+msgstr "গণনাকৃত নোট/কয়েনের যোগফল (%1$s) প্রবেশ করানো গণনাকৃত নগদের (%2$s) সাথে মিলছে না।"
+
+msgid "These enabled gateways have no active account mapped: %s"
+msgstr "এই সক্রিয় গেটওয়েগুলোর সাথে কোনো সক্রিয় অ্যাকাউন্ট ম্যাপ করা নেই: %s"
+
+msgid "This PIN is already in use by another employee at this location."
+msgstr "এই পিনটি এই লোকেশনে অন্য একজন কর্মচারী ইতিমধ্যে ব্যবহার করছেন।"
+
+msgid "This account has real payment movements against it and cannot be deleted — deactivate it instead."
+msgstr "এই অ্যাকাউন্টে প্রকৃত পেমেন্ট লেনদেন রয়েছে এবং এটি মুছে ফেলা যাবে না — পরিবর্তে এটি নিষ্ক্রিয় করুন।"
+
+msgid "This challan has already been reversed."
+msgstr "এই চালানটি ইতিমধ্যে বিপরীতমুখী (রিভার্স) করা হয়েছে।"
+
+msgid "This employee code is already in use."
+msgstr "এই কর্মচারী কোডটি ইতিমধ্যে ব্যবহৃত হচ্ছে।"
+
+msgid "This employee has not clocked in."
+msgstr "এই কর্মচারী ক্লক ইন করেননি।"
+
+msgid "This employee is already clocked in."
+msgstr "এই কর্মচারী ইতিমধ্যে ক্লক ইন করা আছেন।"
+
+msgid "This many rows and columns of this label size do not fit the stated page."
+msgstr "এই লেবেল সাইজের এতগুলো সারি ও কলাম উল্লিখিত পেজে ধরে না।"
+
+msgid "This overlaps a request already on file."
+msgstr "এটি ইতিমধ্যে নথিভুক্ত একটি অনুরোধের সাথে সাংঘর্ষিক।"
+
+msgid "This purchase order is already fully received."
+msgstr "এই ক্রয় আদেশটি ইতিমধ্যে সম্পূর্ণরূপে গৃহীত হয়েছে।"
+
+msgid "This refund was already processed."
+msgstr "এই রিফান্ডটি ইতিমধ্যে প্রসেস করা হয়েছে।"
+
+msgid "This register already has an open shift."
+msgstr "এই রেজিস্টারে ইতিমধ্যে একটি খোলা শিফট রয়েছে।"
+
+msgid "This register has sales still syncing. Wait for them to finish before closing."
+msgstr "এই রেজিস্টারের কিছু বিক্রয় এখনো সিঙ্ক হচ্ছে। বন্ধ করার আগে সেগুলো সম্পন্ন হওয়ার অপেক্ষা করুন।"
+
+msgid "This request is not awaiting a decision."
+msgstr "এই অনুরোধটি সিদ্ধান্তের অপেক্ষায় নেই।"
+
+msgid "This request would exceed the annual cap for this leave type."
+msgstr "এই অনুরোধ এই ছুটির ধরনের বার্ষিক সীমা অতিক্রম করবে।"
+
+msgid "This sale would exceed the credit limit (limit ৳%1$s, would owe ৳%2$s)."
+msgstr "এই বিক্রয় বাকি সীমা অতিক্রম করবে (সীমা ৳%1$s, বকেয়া হবে ৳%2$s)।"
+
+msgid "This shift is already closed."
+msgstr "এই শিফটটি ইতিমধ্যে বন্ধ হয়ে গেছে।"
+
+msgid "This stocktake is already closed."
+msgstr "এই স্টকটেকটি ইতিমধ্যে বন্ধ হয়ে গেছে।"
+
+msgid "This stocktake is closed."
+msgstr "এই স্টকটেকটি বন্ধ।"
+
+msgid "This supplier has ledger movements and cannot be deleted — deactivate it instead."
+msgstr "এই সরবরাহকারীর লেজার লেনদেন রয়েছে এবং এটি মুছে ফেলা যাবে না — পরিবর্তে এটি নিষ্ক্রিয় করুন।"
+
+msgid "This user already has an employee record."
+msgstr "এই ইউজারের ইতিমধ্যে একটি কর্মচারী রেকর্ড রয়েছে।"
+
+msgid "Till"
+msgstr "টিল"
+
+msgid "To"
+msgstr "পর্যন্ত"
+
+msgid "Too many attempts. Try again in a minute."
+msgstr "অনেক বেশি চেষ্টা হয়েছে। এক মিনিট পর আবার চেষ্টা করুন।"
+
+msgid "Top offset — calibration correction (mm)"
+msgstr "উপরের অফসেট — ক্যালিব্রেশন সংশোধন (মিমি)"
+
+msgid "Total"
+msgstr "সর্বমোট"
+
+msgid "Total expenses"
+msgstr "মোট খরচ"
+
+msgid "Type"
+msgstr "ধরন"
+
+msgid "Unallocated"
+msgstr "অবণ্টিত"
+
+msgid "Uncategorised"
+msgstr "শ্রেণীবিহীন"
+
+msgid "Unexpected sale state."
+msgstr "অপ্রত্যাশিত বিক্রয় অবস্থা।"
+
+msgid "Unknown"
+msgstr "অজানা"
+
+msgid "Unknown (no PIN switch on record)"
+msgstr "অজানা (রেকর্ডে কোনো পিন সুইচ নেই)"
+
+msgid "Unknown document template type."
+msgstr "অজানা ডকুমেন্ট টেমপ্লেট ধরন।"
+
+msgid "Unknown expense category."
+msgstr "অজানা খরচের ক্যাটাগরি।"
+
+msgid "Unknown export."
+msgstr "অজানা এক্সপোর্ট।"
+
+msgid "Unknown leave type."
+msgstr "অজানা ছুটির ধরন।"
+
+msgid "Unknown payment account."
+msgstr "অজানা পেমেন্ট অ্যাকাউন্ট।"
+
+msgid "Unknown register."
+msgstr "অজানা রেজিস্টার।"
+
+msgid "Unknown report: %s"
+msgstr "অজানা রিপোর্ট: %s"
+
+msgid "Unknown tender method: %s"
+msgstr "অজানা পেমেন্ট পদ্ধতি: %s"
+
+msgid "Unknown unit."
+msgstr "অজানা একক।"
+
+msgid "VAT Exports"
+msgstr "ভ্যাট এক্সপোর্ট"
+
+msgid "VAT register exports"
+msgstr "ভ্যাট রেজিস্টার এক্সপোর্ট"
+
+msgid "Variance"
+msgstr "গরমিল"
+
+msgid "Variance history"
+msgstr "গরমিলের ইতিহাস"
+
+msgid "Variation ID (leave 0 for a simple product)"
+msgstr "ভ্যারিয়েশন আইডি (সাধারণ পণ্যের জন্য ০ রাখুন)"
+
+msgid "Vertical gutter (mm)"
+msgstr "ভার্টিক্যাল গাটার (মিমি)"
+
+msgid "View"
+msgstr "দেখুন"
+
+msgid "Voids"
+msgstr "বাতিলকৃত"
+
+msgid "Walk-in customer"
+msgstr "ওয়াক-ইন গ্রাহক"
+
+msgid "What did we make yesterday?"
+msgstr "গতকাল আমরা কত আয় করেছি?"
+
+msgid "What is running out?"
+msgstr "কী শেষ হয়ে যাচ্ছে?"
+
+msgid "WooCommerce"
+msgstr "WooCommerce"
+
+msgid "Write adjustment"
+msgstr "সমন্বয় লিখুন"
+
+msgid "Yesterday — %s"
+msgstr "গতকাল — %s"
+
+msgid "You are not permitted to close this shift."
+msgstr "এই শিফট বন্ধ করার অনুমতি আপনার নেই।"
+
+msgid "You do not have permission to access this page."
+msgstr "এই পেজ অ্যাক্সেস করার অনুমতি আপনার নেই।"
+
+msgid "You do not have permission to export."
+msgstr "এক্সপোর্ট করার অনুমতি আপনার নেই।"
+
+msgid "You do not have permission to fulfil orders."
+msgstr "অর্ডার ফুলফিল করার অনুমতি আপনার নেই।"
+
+msgid "You have no employee record to request leave against."
+msgstr "ছুটির অনুরোধ করার জন্য আপনার কোনো কর্মচারী রেকর্ড নেই।"
+
+msgid "You have no employee record, so there is nothing of your own to request or show here."
+msgstr "আপনার কোনো কর্মচারী রেকর্ড নেই, তাই এখানে অনুরোধ বা দেখানোর মতো আপনার নিজস্ব কিছু নেই।"
+
+msgid "You have no employee record."
+msgstr "আপনার কোনো কর্মচারী রেকর্ড নেই।"
+
+msgid "You may not cancel this request."
+msgstr "আপনি এই অনুরোধ বাতিল করতে পারবেন না।"
+
+msgid "Your own requests"
+msgstr "আপনার নিজের অনুরোধসমূহ"
+
+msgid "Z-report"
+msgstr "জেড-রিপোর্ট"
+
+msgid "a record already exists for this employee and date"
+msgstr "এই কর্মচারী ও তারিখের জন্য একটি রেকর্ড ইতিমধ্যে বিদ্যমান"
+
+msgid "balanced"
+msgstr "মিলেছে"
+
+msgid "clock_out before clock_in"
+msgstr "clock_in-এর আগে clock_out"
+
+msgid "column count does not match the header"
+msgstr "কলাম সংখ্যা হেডারের সাথে মিলছে না"
+
+msgid "e.g. -3 or 10"
+msgstr "যেমন -৩ অথবা ১০"
+
+msgid "free"
+msgstr "ফ্রি"
+
+msgid "height (mm)"
+msgstr "উচ্চতা (মিমি)"
+
+msgid "invalid"
+msgstr "অবৈধ"
+
+msgid "invalid clock_in/clock_out (need H:i)"
+msgstr "অবৈধ clock_in/clock_out (H:i প্রয়োজন)"
+
+msgid "invalid work_date (need Y-m-d)"
+msgstr "অবৈধ work_date (Y-m-d প্রয়োজন)"
+
+msgid "off by %s"
+msgstr "%s পার্থক্য"
+
+msgid "operator"
+msgstr "অপারেটর"
+
+msgid "picked"
+msgstr "পিক করা হয়েছে"
+
+msgid "unallocated"
+msgstr "অবণ্টিত"
+
+msgid "unknown employee code"
+msgstr "অজানা কর্মচারী কোড"
+
+msgid "width (mm)"
+msgstr "প্রস্থ (মিমি)"
+
+msgid "x (mm)"
+msgstr "x (মিমি)"
+
+msgid "y (mm)"
+msgstr "y (মিমি)"
+
+msgid "— none —"
+msgstr "— কোনোটি না —"
+
+msgid "%d refund was created in wp-admin without going through the counter — its stock and profit-and-loss may be wrong."
+msgid_plural "%d refunds were created in wp-admin without going through the counter — their stock and profit-and-loss may be wrong."
+msgstr[0] "%d টি রিফান্ড wp-admin-এ কাউন্টার ছাড়াই তৈরি হয়েছে — এর স্টক ও লাভ-ক্ষতি ভুল হতে পারে।"
+msgstr[1] "%d টি রিফান্ড wp-admin-এ কাউন্টার ছাড়াই তৈরি হয়েছে — এগুলোর স্টক ও লাভ-ক্ষতি ভুল হতে পারে।"
+
+# U2 (COUNTERFRONTEND.md) — the terminal's own on-screen strings.
+# pos.js had no translation mechanism at all until this task; these are
+# every NEW string it now reads through templates/pos.php's bootstrap
+# (assets/pos.js's own STRINGS object holds the matching keys). Left
+# untranslated (msgstr "") for the same shop-staff review P8.3 itself
+# required — a developer should not be guessing Bengali retail phrasing.
+
+msgid "Offline"
+msgstr ""
+
+msgid "Offline too long — reconnect to keep selling"
+msgstr ""
+
+msgid "Cart"
+msgstr ""
+
+msgid "Walk-in — F6 to attach a customer"
+msgstr ""
+
+msgid "Owes"
+msgstr ""
+
+msgid "Limit"
+msgstr ""
+
+msgid "Available"
+msgstr ""
+
+msgid "Oldest due %n% days"
+msgstr ""
+
+msgid "Clear customer"
+msgstr ""
+
+msgid "Usual:"
+msgstr ""
+
+msgid "Scan or type SKU / barcode / name"
+msgstr ""
+
+msgid "Total:"
+msgstr ""
+
+msgid "Out of stock"
+msgstr ""
+
+msgid "Decrease quantity"
+msgstr ""
+
+msgid "Increase quantity"
+msgstr ""
+
+msgid "Remove line"
+msgstr ""
+
+msgid "Pay"
+msgstr ""
+
+msgid "Discount"
+msgstr ""
+
+msgid "New item"
+msgstr ""
+
+msgid "Hold"
+msgstr ""
+
+msgid "Resume"
+msgstr ""
+
+msgid "Return"
+msgstr ""
+
+msgid "No-sale"
+msgstr ""
+
+msgid "Void"
+msgstr ""
+
+msgid "No matches for"
+msgstr ""
+
+msgid "Attach customer"
+msgstr ""
+
+msgid "Customer phone"
+msgstr ""
+
+msgid "Find"
+msgstr ""
+
+msgid "More than one match — pick the right one."
+msgstr ""
+
+msgid "Last order"
+msgstr ""
+
+msgid "No customer found for %phone%."
+msgstr ""
+
+msgid "Bill as walk-in"
+msgstr ""
+
+msgid "(no name)"
+msgstr ""
+
+msgid "Take payment —"
+msgstr ""
+
+msgid "Add another method"
+msgstr ""
+
+msgid "Due:"
+msgstr ""
+
+msgid "Taken:"
+msgstr ""
+
+msgid "Remaining:"
+msgstr ""
+
+msgid "Change:"
+msgstr ""
+
+msgid "Take payment & print"
+msgstr ""
+
+msgid "Credit (on account)"
+msgstr ""
+
+msgid "Remove tender row"
+msgstr ""
+
+msgid "Offline — a credit tender's limit is checked once this sale syncs, not now."
+msgstr ""
+
+msgid "On account after this sale: %after% (no credit limit set)."
+msgstr ""
+
+msgid "On account after this sale: %after% of %limit% limit."
+msgstr ""
+
+msgid "Exceeds this customer's available credit (%available% left)."
+msgstr ""
+
+msgid "Credit cannot exceed the total due."
+msgstr ""
+
+msgid "Cash"
+msgstr ""
+
+msgid "Card"
+msgstr ""
+
+msgid "bKash"
+msgstr ""
+
+msgid "Nagad"
+msgstr ""
+
+msgid "Rocket"
+msgstr ""
+
+msgid "Bank"
+msgstr ""
+
+msgid "Change"
+msgstr ""
+
+msgid "Change quantity —"
+msgstr ""
+
+msgid "Quantity"
+msgstr ""
+
+msgid "Apply"
+msgstr ""
+
+msgid "Remove this line?"
+msgstr ""
+
+msgid "Discount —"
+msgstr ""
+
+msgid "Amount off (৳)"
+msgstr ""
+
+msgid "Percent off (%)"
+msgstr ""
+
+msgid "Apply discount"
+msgstr ""
+
+msgid "Override price to (৳)"
+msgstr ""
+
+msgid "Apply override"
+msgstr ""
+
+msgid "That's %pct%% off — above the %ceiling%% ceiling."
+msgstr ""
+
+msgid "No sale — open drawer"
+msgstr ""
+
+msgid "Open drawer & print"
+msgstr ""
+
+msgid "A reason is required."
+msgstr ""
+
+msgid "Could not record the no-sale — try again once the till is back online."
+msgstr ""
+
+msgid "NO SALE — DRAWER OPENED"
+msgstr ""
+
+msgid "Quick-add a product"
+msgstr ""
+
+msgid "Price (৳)"
+msgstr ""
+
+msgid "Barcode / SKU"
+msgstr ""
+
+msgid "Unit"
+msgstr ""
+
+msgid "Opening quantity"
+msgstr ""
+
+msgid "Add product"
+msgstr ""
+
+msgid "Could not add this product — try again."
+msgstr ""
+
+msgid "Held sales"
+msgstr ""
+
+msgid "just now"
+msgstr ""
+
+msgid "%n%m ago"
+msgstr ""
+
+msgid "%h%h %n%m ago"
+msgstr ""
+
+msgid "This will replace the current cart with the held ticket. Continue?"
+msgstr ""
+
+msgid "Walk-in"
+msgstr ""
+
+msgid "item"
+msgstr ""
+
+msgid "items"
+msgstr ""
+
+msgid "Return / exchange"
+msgstr ""
+
+msgid "Original receipt number"
+msgstr ""
+
+msgid "Could not find that receipt."
+msgstr ""
+
+msgid "Return — receipt"
+msgstr ""
+
+msgid "of"
+msgstr ""
+
+msgid "left"
+msgstr ""
+
+msgid "Refund total:"
+msgstr ""
+
+msgid "Refund & print"
+msgstr ""
+
+msgid "Select at least one item to return."
+msgstr ""
+
+msgid "This register is offline — a return needs a live connection. Try again once reconnected."
+msgstr ""
+
+msgid "The return was refused."
+msgstr ""
+
+msgid "RETURN — against receipt"
+msgstr ""
+
+msgid "Refunded:"
+msgstr ""
+
+msgid "Reason:"
+msgstr ""
+
+msgid "You don't have permission to discount this line."
+msgstr ""
+
+msgid "You don't have permission to record a no-sale."
+msgstr ""
+
+msgid "You don't have permission to void a line."
+msgstr ""
+
+msgid "You don't have permission to quick-add a product."
+msgstr ""
+
+msgid "Clear the entire cart?"
+msgstr ""
+
+msgid "PROVISIONAL BILL — NOT A VAT INVOICE"
+msgstr ""
+
+msgid "This sale was rung offline. Its official Mushak 6.3 challan issues once the till reconnects and this receipt syncs."
+msgstr ""
+
+msgid "Receipt:"
+msgstr ""
+
+msgid "(offline — pending sync)"
+msgstr ""
+
+msgid "Paid now:"
+msgstr ""
+
+msgid "On account: %amount% — the credit limit will be checked when this sale syncs, not now."
+msgstr ""
+
+msgid "No shift is open on this register"
+msgstr ""
+
+msgid "Opening float (৳)"
+msgstr ""
+
+msgid "Open shift"
+msgstr ""
