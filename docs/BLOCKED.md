@@ -77,4 +77,33 @@ the actual fix is the one-line data flip above. Filed here as more evidence for 
 `wp counter selftest` run — chiefly the DOM harness, now working locally (see `docs/decisions.md`),
 which covers A1/A2 without needing the live PHP suite at all.
 
+## Live-server fixture debris — a crashed run never reaches cleanup()
+
+**Date** 2026-08-26
+**Found while** re-running selftest after pushing A1 (an unrelated frontend-only change) — the crash
+moved *earlier* in `run()`'s fixed method order (`test_payment_accounts` this time, not
+`test_late_sales`) with no PHP change between the two runs to explain that. `Selftest::cleanup()` only
+deletes rows this run's own `*_fixture_ids` arrays recorded, populated inline as each `test_*()` method
+executes (see the class's own §11.2 rule 6 doc comment) — a fatal mid-run means `cleanup()` at the end
+of `run()` never executes at all, and everything that run created is permanently orphaned. A read-only
+audit of peapip.com right now: **163 WooCommerce products, 65 registers, 26 locations, and 33 of the
+site's 35 WP users** carry selftest-fixture naming/meta. Given the account has clearly been used for
+this suite over a long project history (`reference-peapip-ssh-access` memory notes this exact side
+effect), most of this predates today — but every crashed run adds a little more, and **this session
+alone triggered three** (the two documented above, plus this third one) before recognizing the pattern.
+
+**Not attempting cleanup** — bulk-deleting WooCommerce/WordPress data on a live production site is
+exactly the kind of write this run's own permission system correctly declines to make unattended, the
+same as the payment-account flip. It also needs care a fixture-tag heuristic alone doesn't guarantee
+(false positives are possible; a real shop could plausibly have named something similarly).
+
+**Needs a human to decide:** whether/how to sweep this — the fixture meta/naming conventions above are
+a reasonable starting filter — and separately, whether repeated live selftest runs against a shop's
+production database is the right long-term testing strategy at all versus a staging clone. **Stopping
+further full-suite remote selftest runs against production for the rest of this session** until the
+payment-account blocker is resolved; each attempt currently guarantees a crash partway through (so
+produces no usable pass/fail signal) while adding more of exactly this debris. Verification for
+remaining Phase A tasks continues via the DOM harness (frontend) and code review + `php -l` (backend)
+instead — see `docs/decisions.md`.
+
 _(nothing else blocked yet)_

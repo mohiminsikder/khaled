@@ -61,3 +61,28 @@ they are bugs in the harness itself, not a policy choice.
 For **A0** specifically (backend-only, `includes/Cli.php` + a `Selftest.php` method, no `pos.js`
 touched) the DOM harness has nothing to exercise regardless — verification for A0 is the remote
 `wp counter selftest` run (the thing A0 adds).
+
+### 2026-08-26 · Verification strategy while the live selftest suite is blocked
+
+Per `docs/BLOCKED.md`, `wp counter selftest` currently cannot complete on peapip.com (production) —
+CASH/BKASH payment accounts are inactive, which cascades into fatal crashes in whichever `test_*()`
+method next assumes a sale succeeded, and a crash skips `cleanup()` entirely, leaving fixture debris
+behind (also documented in `BLOCKED.md`). Both need a human decision (a live-data write the permission
+system declined to make unattended). **Continuing Phase A without that baseline**, task by task:
+
+- **Frontend (`assets/pos.js`) tasks** — verified via `tests/pos-dom.mjs` against the real rendered
+  screen, now working locally (`npm i`, `PW_CHROME_PATH` pointed at this machine's Chrome). This is
+  actually the *more* rigorous layer for these tasks per `COUNTERV2.md` §2 — Layer B, not Layer A.
+- **Backend (PHP) tasks** — `php -l` for syntax, careful manual review against the existing code's own
+  conventions, and reasoning through the specific `test_*()` method being added/extended. **Not**
+  claiming these are self-test-verified against the live suite; the run summary will say so plainly for
+  each one, per `START-HERE.md`'s "green is not done" rule.
+- **Still pushing each commit live** (`scripts/deploy.sh push`) — that step doesn't run any test and
+  its own risk is bounded by the existing `.bak-<timestamp>` rollback. **Not** running
+  `scripts/deploy.sh selftest` after each push until the payment-account blocker clears, to avoid
+  manufacturing more crash-orphaned fixture debris for a run that cannot complete anyway.
+- Once a human flips the two accounts active, the very next full run's `cleanup()` will finally execute
+  and this project will have a real labelled pass/fail baseline — worth re-running immediately when
+  that happens, and worth treating that first real result set as the actual baseline, not the count
+  quoted anywhere in the plan docs (`TILLBUGS.md`'s "465 checks" describes the pre-crash-discovery
+  belief, not a number this project has ever actually observed complete).
