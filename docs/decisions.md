@@ -76,6 +76,15 @@ already being LF-stored is what keeps it running correctly if this repo is ever 
 sandbox its own docs assume (a CRLF-stored shell script frequently breaks there). No `.gitattributes`
 added — not needed now that the one outlier is gone, and speculative infra beyond what actually broke.
 
+### 2026-08-26 · Standing reminder: bump CNTR_VERSION whenever pos.js/pos.css changes
+
+Missed this for A1 and A2 (caught and fixed at A4), then missed it again for B1 and B2 — bumped to
+0.1.22 belatedly. Pattern going forward: **every task whose Files line touches `assets/pos.js` or
+`assets/pos.css` bumps CNTR_VERSION in `counter.php` as part of that same commit**, not a separate
+catch-up later — `Pos\Assets` uses it as the literal cache-buster query string, so skipping it means a
+browser that already cached the old file keeps serving it until the version string changes for some
+unrelated reason. A backend-only task (no `pos.js`/`pos.css` in its Files) does not need this.
+
 ### 2026-08-26 · Verification strategy while the live selftest suite is blocked
 
 Per `docs/BLOCKED.md`, `wp counter selftest` currently cannot complete on peapip.com (production) —
