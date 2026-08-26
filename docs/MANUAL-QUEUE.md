@@ -10,7 +10,15 @@ Format: `- [ ] <task id> — <what to do> — <what proves it>`
 
 ## Outstanding
 
-_(empty — populated as tasks land)_
+- [ ] A3 — Scan twenty items off the shelf — each resolves at the right price via its real barcode
+      (`_cntr_barcode` meta), not just by SKU coincidence. Note: no product on peapip.com has this
+      meta field populated yet (D3(b) only wired the read side; populating real barcodes is a
+      shop-data/import step, out of A3's scope) — this check is only meaningful once at least one
+      product has a real barcode set.
+- [ ] A4 — Log in as a real cashier (not an administrator) and confirm the credit-sale row appears at
+      the tender screen, and that Refund is no longer offered to them. Verified programmatically live
+      (`docs/decisions.md`/commit ac410ca — cashier has cntr_credit_sale=true, cntr_refund=false) but
+      never seen through an actual cashier's own screen.
 
 ## Standing checks — every phase
 
