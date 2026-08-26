@@ -44,7 +44,34 @@ order. Each task carries:
 6. **`tests/` never ships.** Excluded from the release zip.
 7. **One task, one commit.** Do not batch.
 
-### 0.2 What is already true — verified, do not re-derive
+### 0.2 Running unattended
+
+**This plan is written to be executed without a human present.** Nobody is watching the terminal.
+Act accordingly:
+
+1. **Never stop to ask.** Every choice this plan needs has a default in §1 or in the task itself.
+   If you hit something genuinely unspecified, pick the option that is smallest, most reversible and
+   most consistent with the surrounding code; write it in `docs/decisions.md` under
+   **Assumptions made while running unattended**, and continue.
+2. **Never leave the tree broken.** A task is finished when its self-tests pass and it is committed.
+   If a task cannot be completed, revert its partial work, write the reason in `docs/BLOCKED.md`,
+   and **move to the next task** — do not halt the run.
+3. **`docs/BLOCKED.md` is the report.** One entry per blocked task: task id, what was attempted,
+   the exact error, and what a human needs to decide or supply. This file is what gets read after
+   the run; a stalled prompt is not.
+4. **Manual checks do not block.** Items under **Manual** need a person at real hardware. Append each
+   to `docs/MANUAL-QUEUE.md` with its task id and carry on. Never mark a phase accepted on the
+   strength of automated checks alone — say plainly in the run summary which manual items are
+   outstanding.
+5. **Run the suite after every task**, headlessly, via A0's CLI command. Compare the labelled
+   pass/fail list against the previous run, never a total count.
+6. **Never weaken a test to make it pass.** If a check fails, the code is wrong until proven
+   otherwise. A check that is genuinely wrong gets its own commit explaining why, not a quiet edit.
+7. **Never skip, disable or delete a failing test**, and never commit with a known regression.
+8. **Push after every commit** so the work survives the container.
+
+
+### 0.3 What is already true — verified, do not re-derive
 
 Read directly from the v0.1.20 source:
 
@@ -73,58 +100,57 @@ And what is **absent**, verified by search returning nothing:
 
 ---
 
-## 1. Decisions required before code
+## 1. Defaults already chosen — apply them, do not wait
 
-Five. Each changes what gets built. **Get answers, record them in `docs/decisions.md`, then start.**
+Five choices change what gets built. **Each has a default below. Apply it, write it into
+`docs/decisions.md` with one line of reasoning, and keep going.** None of these blocks a task. The
+shop can override any of them later; every default is chosen so that reversing it is a small,
+contained change rather than a rewrite.
 
 ### D1 — Does a customer carry a price tier?
 
 `Groups::price_at_register()` reads `price_group_id` from the register's `settings_json`. There is
-no customer→group link anywhere in the schema. A wholesale regular at the retail till gets retail
-prices.
+no customer→group link in the schema, so a wholesale regular at the retail till gets retail prices.
 
-SuperShop puts a price-group picker on the till, changeable per sale, which re-prices the open cart.
+> **DEFAULT: build both.** A price-group picker on the till (per sale, re-prices the open cart)
+> **and** a `price_group_id` column on the customer that auto-selects on attach. A regular's tier
+> must not depend on the cashier remembering. Reversing it means ignoring one column.
 
-- **(a)** Picker only — cashier selects the group per sale. Frontend only.
-- **(b)** Picker plus a `price_group_id` on the customer that auto-selects on attach. Adds a column
-  and changes what a sale costs.
+### D2 — Who may sell on account (বাকি), and who may refund?
 
-**Recommendation: (b).** A regular's tier should not depend on the cashier remembering.
+`cashier_caps()` and `supervisor_caps()` both omit `cntr_credit_sale`, so a real cashier cannot bill
+a standing customer at all. Separately, `cntr_refund` **is** granted to cashiers.
 
-### D2 — Who may sell on account (বাকি)?
-
-`cashier_caps()` and `supervisor_caps()` both omit `cntr_credit_sale`. A real cashier cannot bill a
-standing customer at all today. Also: `cntr_refund` **is** granted to cashiers, which most shops
-restrict. Answer both.
+> **DEFAULT: grant `cntr_credit_sale` to Cashier and Supervisor. Move `cntr_refund` to Supervisor.**
+> Credit at the counter is the feature the till was built for and a shop that does not want it can
+> revoke one capability. Refunds are the classic shrinkage path and every reference POS restricts
+> them. Both are one line in `Capabilities.php` plus a version bump.
 
 ### D3 — What is the barcode?
 
-`Catalog::reindex()` writes `''` and nothing populates it. Scanning resolves by SKU only.
+`Catalog::reindex()` hardcodes `''` into both the payload and the column, and nothing else populates
+it, so scanning resolves by SKU only.
 
-- **(a)** SKU **is** the barcode. Drop the dead `barcode` field and column, fix the placeholder
-  text. Honest and free.
-- **(b)** A separate product meta field, populated in `reindex()`. Needed if products carry
-  manufacturer EANs distinct from internal SKUs — the normal grocery case.
+> **DEFAULT: add a real barcode meta field and populate it in `reindex()`, falling back to SKU when
+> empty.** Groceries carry manufacturer EANs distinct from internal SKUs, so treating SKU as the
+> barcode would break the moment a real catalogue is imported. The fallback means nothing regresses
+> for shops where SKU already is the barcode. Fix the search placeholder to match.
 
-### D4 — Loyalty: build, or remove the affordance?
+### D4 — Loyalty: build it, or remove the affordance?
 
-SuperShop has reward points redeemable at the till. Counter has none. The customer identity and
-ledger it would build on exist. Either commit to Phase E, or do not draw the row.
+Counter has no points, rewards or coupons. The customer identity and ledger it would build on exist.
+
+> **DEFAULT: do not build it, and do not draw it.** Ship no reward-point row in B4's totals footer.
+> A label over nothing is worse than an absence. Loyalty stays E1, scoped separately, and the B4
+> footer is built so a row can be added without reflowing it.
 
 ### D5 — Where does the back office live?
 
-Counter's 17 screens are wp-admin submenus. SuperShop has its own shell — sidebar, top bar, 85
-routes.
+Counter's 17 screens are wp-admin submenus; SuperShop has its own shell across 85 routes.
 
-- **(a)** Stay in wp-admin, adopt SuperShop's *density* inside it. Conventional, cheaper, no
-  duplicate chrome.
-- **(b)** A dedicated full-screen Counter shell for the back office.
-
-**Recommendation: (a).** WordPress users expect wp-admin, and a second shell means maintaining a
-second navigation, permission surface and responsive layout for no functional gain. The information
-density is what matters, and it is achievable either way.
-
----
+> **DEFAULT: stay in wp-admin.** A second shell means a second navigation, permission surface and
+> responsive layout for no functional gain. What the teardown actually demonstrates is information
+> *density*, which is achievable inside wp-admin. Phase C builds the density, not the chrome.
 
 ## 2. Verification — the part that has failed twice
 
@@ -137,7 +163,7 @@ Three layers, all required, before any Phase B task:
 
 | Layer | Runs | Catches | Built in |
 |---|---|---|---|
-| **A — source guards** | existing `Selftest` | stubs, unwired functions, dead config | shipped (`test_pos_wiring()`) |
+| **A — source guards** | `wp counter selftest` (A0) | stubs, unwired functions, dead config | shipped (`test_pos_wiring()`) |
 | **B — DOM harness** | headless Chromium | broken interactions, wrong rendered state | `tests/` — **shipped, extend it** |
 | **C — manual** | the shop's real till | scanner, printer, drawer, feel | §6 |
 
@@ -158,10 +184,32 @@ live install. Read the labelled pass/fail list.
 Nothing else matters until a shop can actually open the till and bill correctly. All of this is
 small; most of it is already specified in `TILLBUGS.md` and `COUNTERGOLIVE.md`.
 
+### A0 — Make the suite runnable without a browser
+
+**Goal** The whole self-test suite runs from a terminal, so an unattended run can verify itself.
+**Depends** nothing. **This is genuinely first — without it nothing below can be checked headlessly.**
+**Backend** `Selftest` is reachable only from `Health.php` via `admin.php?page=counter-health&selftest=1`.
+There is no WP-CLI command; `Cli.php` registers only `rebuild-stock` and `rebuild-rollup`. Add
+`wp counter selftest` alongside them: runs `( new Selftest() )->run()`, prints the labelled pass/fail
+list, supports `--format=json` and `--filter=<substring>` to run one method, and **exits non-zero on
+any failure** so a run can gate on it.
+**Frontend** none
+**Files** `includes/Cli.php`
+**Schema** none
+**Self-test** `test_cli_selftest()` — 3 checks: the command is registered when WP-CLI is present;
+`--filter` runs a subset; the exit code is non-zero when a check fails.
+
+> Add a matching `wp counter dom-test` only if the DOM harness needs it — `node tests/pos-dom.mjs`
+> already runs headlessly and does not go through WordPress.
+
+**Manual** none.
+**Commit** `counter: cli: run the self-test suite from WP-CLI with a real exit code`
+**Done when** `wp counter selftest` prints the labelled list and exits non-zero on a failure.
+
 ### A1 — Every second name-search item silently fails
 
 **Goal** A cashier can add five items in a row by name and get five lines.
-**Depends** nothing. **First.**
+**Depends** A0
 **Backend** none
 **Frontend** delete `assets/pos.js:795` (`suppressNextEnter = true` inside `addHighlightedResult()`)
 **Files** `assets/pos.js`
@@ -196,7 +244,7 @@ no-sale and quick-add modals for the same gap
 ### A3 — Decide and populate the barcode
 
 **Goal** Scanning resolves the way the shop's own barcodes are printed.
-**Depends** **D3 answered**
+**Depends** A2 — apply D3's default
 **Backend** per D3(a) remove the field from the payload and the column; per D3(b) read a product meta
 field in `Catalog::reindex()` and bump `catalog_rev` so terminals re-pull
 **Frontend** fix the search placeholder to match what actually resolves
@@ -211,7 +259,7 @@ resolves by SKU.
 ### A4 — Capability grants
 
 **Goal** The cashier at the till can do what the shop intends, and no more.
-**Depends** **D2 answered**
+**Depends** nothing — apply D2's default
 **Backend** grant `cntr_credit_sale` to the chosen role; move `cntr_refund` per the answer
 **Files** `includes/Capabilities.php`, `counter.php` (version bump — **roles only write on
 activation and version bump**)
@@ -283,7 +331,7 @@ a tile adds a line; a below-threshold tile carries its marker.
 ### B2 — Price group picker
 
 **Goal** A wholesale customer is billed at wholesale.
-**Depends** B1, **D1 answered**
+**Depends** B1 — apply D1's default (build both)
 **Backend** D1(a): expose the active groups and a re-price endpoint. D1(b): add `price_group_id` to
 the customer, return it on `/customers/{id}/profile`, auto-select on attach.
 **Frontend** picker beside the customer strip; changing it **re-prices the open cart** and says so.
@@ -311,13 +359,12 @@ back-solves the unit price; the line total still sums into the cart total.
 ### B4 — Order-level discount and the totals footer
 
 **Goal** "Round it down to two thousand" takes one action.
-**Depends** B3, **D4 answered**
+**Depends** B3 — apply D4's default (no reward row)
 **Backend** the order-level discount must reach `Orders\Builder` as a real WooCommerce discount, not
 a fudged line
 **Frontend** two-line totals footer — Items and Total, then Discount (−), Order tax (+), Shipping (+)
 and Round off, each with a pencil opening its own modal. **Enforce `discountCeilingPct`.** Round off
-is display-only and follows `cash.rounding_step`. Draw the reward-points row **only if D4 says
-build**.
+is display-only and follows `cash.rounding_step`. Per D4's default, **do not draw a reward-points row** — leave room for one.
 **Files** `assets/pos.js`, `assets/pos.css`, `includes/Orders/Builder.php`
 **Self-test** DOM: an order discount reduces the total; one above the ceiling is refused with a
 reason; round-off follows the step; the footer sums correctly. Plus `test_order_discount()` — 3
@@ -336,7 +383,7 @@ variance shown before confirming, then print. **Print the arithmetic in words** 
 SuperShop does: `opening + cash sale − cash refund − cash expense = expected`. Below it, products
 sold by SKU.
 **Files** `includes/Pos/Shifts.php`, `includes/Rest/Shift.php`, `assets/pos.js`, `assets/pos.css`
-**Schema** `cntr_shifts` gains `counted_cash`, `variance`
+**Schema** **none.** `cntr_shifts` already carries `opening_float`, `expected_cash`, `counted_cash`, `variance` and `denoms_json` — verified in `Install.php`. Do **not** bump `CNTR_DB_VER` for this task; the columns are there and unused.
 **Self-test** `test_x_report()` — 7 checks: per-method sell totals match the tender rows; `is_change`
 rows are excluded; expense is subtracted; expected cash equals the printed formula; a variance is
 stored on close; closing twice is refused; a closed shift is immutable.
@@ -649,12 +696,11 @@ a date range change does not break the carry-forward.
 
 Do not start these inside Phase A–D.
 
-### E1 — Loyalty (per D4)
+### E1 — Loyalty
 
 Points earned per sale, redeemable at the till against an identified customer. The foundation —
 customer identity, a working ledger, an order-level discount from B4 — all exists. This is a
-feature, not a rearchitecture. **If D4 says no, remove the reward-point row from B4 rather than
-leaving a label over nothing.**
+feature, not a rearchitecture. Per D4's default B4 never draws the row, so there is nothing to remove — only room left for it.
 
 ### E2 — Payment integration
 
