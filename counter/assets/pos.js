@@ -792,7 +792,6 @@
 		if (!product) return;
 		const search = document.getElementById('cntr-search');
 		if (search) search.value = '';
-		suppressNextEnter = true; // same reasoning as the exact-match path in render()'s 'input' listener — this Enter's job is already done
 		clearSearchResults();
 		addToCart(product, 1);
 	}
