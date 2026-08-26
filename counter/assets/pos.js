@@ -53,6 +53,8 @@
 			searchPlaceholder: 'Scan or type SKU / barcode / name',
 			cartTotal: 'Total:',
 			outOfStockBadge: 'Out of stock',
+			stockInUnit: '%qty% %unit% left',
+			editSubtotalAria: 'Line subtotal',
 			decreaseQtyAria: 'Decrease quantity',
 			increaseQtyAria: 'Increase quantity',
 			removeLineAria: 'Remove line',
@@ -999,11 +1001,20 @@
 		return null != line.basePrice ? line.basePrice : line.unitPrice;
 	}
 
-	/** Applies the currently-attached customer's own price-group override, if any, else the register price. */
+	/**
+	 * Applies the currently-attached customer's own price-group override,
+	 * if any, else the product's default unit's own resolved price (B3 —
+	 * Units::resolve_price() already falls back to base_price × 1 for a
+	 * multiplier-1 default unit, so this equals product.price in the
+	 * ordinary case), else the bare register price for a product with no
+	 * configured multi-unit setup at all.
+	 */
 	function priceForProduct(product) {
 		const key = overrideKey(product.id, product.variation_id || 0);
 		const override = customerPriceMap.get(key);
-		return undefined !== override ? override : String(product.price || '0');
+		if (undefined !== override) return override;
+		const defaultUnit = product.units && product.units[0];
+		return defaultUnit ? defaultUnit.price : String(product.price || '0');
 	}
 
 	const cart = {
@@ -1055,6 +1066,11 @@
 				// a deliberate override back to a group/register price — see
 				// their own guards below and docs/decisions.md.
 				priceOverridden: false,
+				// B3 — the product's own default unit (Stock\Units::for_product()
+				// already orders is_default DESC, so [0] is it); null for a
+				// product with no configured multi-unit setup at all, same as
+				// units: [] itself already means "just the one, unlabelled".
+				unit: product.units && product.units.length ? product.units[0] : null,
 			});
 			cart.selectedIdx = cart.lines.length - 1; // F1 — selection defaults to the last line added
 		}
@@ -2421,6 +2437,56 @@
 		render();
 	}
 
+	/**
+	 * B3 — switching a line's unit converts its qty by the multiplier ratio
+	 * (the same physical quantity, described in the new unit) and re-prices
+	 * to that unit's OWN configured price — Units::resolve_price() already
+	 * falls back to base_price × multiplier when no explicit per-unit price
+	 * was set, so the common case is exactly "converts by the multiplier";
+	 * an explicit bulk price (a 5kg bag priced under 5× the 1kg rate) is
+	 * honoured for free, not a special case here. Marked as an override so
+	 * a later customer attach/clear never claws it back — same reasoning as
+	 * submitPriceOverride()'s own priceOverridden flag.
+	 */
+	function switchLineUnit(idx, unitId) {
+		const line = cart.lines[idx];
+		if (!line || !line.product.units) return;
+		const nextUnit = line.product.units.find((u) => u.unit_id === parseInt(unitId, 10));
+		if (!nextUnit || !line.unit) return;
+		const oldMultiplier = parseFloat(line.unit.multiplier || '1');
+		const newMultiplier = parseFloat(nextUnit.multiplier || '1');
+		const currentQty = parseFloat(line.qty) || 0;
+		line.qty = String((currentQty * oldMultiplier) / newMultiplier);
+		line.unitPrice = nextUnit.price;
+		line.unit = nextUnit;
+		line.priceOverridden = true;
+		render();
+	}
+
+	/**
+	 * B3 — "type the total, we compute the price": back-solves unitPrice
+	 * from a directly-typed line subtotal, qty held fixed — the loose-goods
+	 * case (a customer hands over a fixed amount, the exact weight is
+	 * whatever that buys), but useful for any line. Net of the line's own
+	 * discount, same relationship lineTotal() itself defines. A blank or
+	 * non-positive entry is ignored — the input just reverts to the real
+	 * value on the next render(), never a divide-by-zero or a free item.
+	 */
+	function editLineSubtotal(idx, value) {
+		const line = cart.lines[idx];
+		if (!line) return;
+		const qty = parseFloat(line.qty) || 0;
+		const nextSubtotal = parseFloat(value);
+		if (!(qty > 0) || !(nextSubtotal >= 0)) {
+			render();
+			return;
+		}
+		const discount = parseFloat(line.discount || '0');
+		line.unitPrice = ((nextSubtotal + discount) / qty).toFixed(4);
+		line.priceOverridden = true;
+		render();
+	}
+
 	/** Per-row +/-. Reaching 0 or below removes the line, same as the remove control. */
 	function adjustLineQty(idx, delta) {
 		const line = cart.lines[idx];
@@ -2779,13 +2845,29 @@
 							${cart.lines
 								.map((l, i) => {
 									const discount = parseFloat(l.discount || '0');
+									const units = l.product.units || [];
+									// B3 — stock is always held in base units server-side;
+									// dividing by the SELECTED unit's own multiplier is
+									// what makes "12 available" legible as "1 dozen".
+									const stockInUnit =
+										units.length && l.unit && null != l.product.sellable_qty
+											? (parseFloat(l.product.sellable_qty) / parseFloat(l.unit.multiplier || '1')).toFixed(l.unit.allow_decimal ? 2 : 0)
+											: null;
 									return `<li data-idx="${i}" class="cntr-cart-line${i === cart.selectedIdx ? ' cntr-cart-line-selected' : ''}">
 										<span class="cntr-cart-name">${escapeHtml(l.product.name || '')}</span>
 										<span class="cntr-cart-qty">${l.qty}</span>
+										${
+											units.length
+												? `<select class="cntr-cart-unit" data-idx="${i}">
+													${units.map((u) => `<option value="${u.unit_id}"${l.unit && u.unit_id === l.unit.unit_id ? ' selected' : ''}>${escapeHtml(u.code || u.name)}</option>`).join('')}
+												</select>
+												<span class="cntr-cart-stock-in-unit">${null !== stockInUnit ? fmt(STRINGS.stockInUnit, { qty: stockInUnit, unit: escapeHtml(l.unit.code || '') }) : ''}</span>`
+												: ''
+										}
 										<span class="cntr-cart-price">${formatMoney(l.unitPrice)}</span>
 										${discount ? `<span class="cntr-cart-discount-badge">&minus;${formatMoney(discount)}</span>` : ''}
 										${l.outOfStock ? `<span class="cntr-cart-outofstock-badge">${STRINGS.outOfStockBadge}</span>` : ''}
-										<span class="cntr-cart-line-total">${formatMoney(lineTotal(l))}</span>
+										<input type="text" inputmode="decimal" class="cntr-cart-subtotal" data-idx="${i}" value="${lineTotal(l).toFixed(2)}" aria-label="${STRINGS.editSubtotalAria}">
 										<button type="button" class="cntr-cart-qty-dec" data-idx="${i}" aria-label="${STRINGS.decreaseQtyAria}">&minus;</button>
 										<button type="button" class="cntr-cart-qty-inc" data-idx="${i}" aria-label="${STRINGS.increaseQtyAria}">+</button>
 										<button type="button" class="cntr-cart-remove" data-idx="${i}" aria-label="${STRINGS.removeLineAria}">&times;</button>
@@ -2899,7 +2981,13 @@
 
 		root.querySelectorAll('.cntr-cart-line').forEach((li) => {
 			li.addEventListener('click', (e) => {
-				if (e.target.closest('button')) return; // the row's own qty/remove buttons handle themselves
+				// The row's own qty/remove buttons handle themselves; the unit
+				// select and subtotal input (B3) must never trigger a
+				// mid-interaction render() — a native <select> losing its own
+				// click, or an <input> losing focus/caret the instant it's
+				// tapped, same class of bug F1's own prevValue/prevCaret exists
+				// to prevent for the main search box.
+				if (e.target.closest('button, select, input')) return;
 				selectLine(parseInt(li.dataset.idx, 10));
 			});
 		});
@@ -2911,6 +2999,14 @@
 		});
 		root.querySelectorAll('.cntr-cart-remove').forEach((btn) => {
 			btn.addEventListener('click', () => removeLine(parseInt(btn.dataset.idx, 10)));
+		});
+
+		// B3 — per-line unit switch and the editable subtotal.
+		root.querySelectorAll('.cntr-cart-unit').forEach((select) => {
+			select.addEventListener('change', () => switchLineUnit(parseInt(select.dataset.idx, 10), select.value));
+		});
+		root.querySelectorAll('.cntr-cart-subtotal').forEach((input) => {
+			input.addEventListener('change', () => editLineSubtotal(parseInt(input.dataset.idx, 10), input.value));
 		});
 
 		// B1 — the tile grid: a category chip narrows gridProducts(), a tile

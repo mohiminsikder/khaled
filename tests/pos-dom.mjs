@@ -117,6 +117,32 @@ await p.selectOption('#cntr-price-group', '0'); await p.waitForTimeout(400);
 const priceAfterReset = (await chinigura().textContent()).trim();
 assert(priceAfterReset.includes('620.00'), `B2: switching back to "Register price" restores it (now "${priceAfterReset}")`);
 
+// -- B3: per-line unit selection and the editable subtotal. Sugar 1kg
+// (already in the cart from the A1 block, qty=1 kg @ ৳135.00) has two
+// fixture units: kg (multiplier 1, default) and g (multiplier 0.001).
+const sugarLine = () => p.locator('.cntr-cart-line', { hasText: 'Sugar' });
+const sugarQty = async () => (await sugarLine().locator('.cntr-cart-qty').textContent()).trim();
+const sugarSubtotal = async () => (await sugarLine().locator('.cntr-cart-subtotal').inputValue()).trim();
+
+assert('1' === (await sugarQty()), `B3: Sugar starts at qty 1 kg (has ${await sugarQty()})`);
+await sugarLine().locator('.cntr-cart-unit').selectOption('202'); // grams
+await p.waitForTimeout(300);
+assert('1000' === (await sugarQty()), `B3: switching to grams converts qty by the multiplier (1 kg -> ${await sugarQty()} g)`);
+assert('135.00' === (await sugarSubtotal()), `B3: the subtotal is unchanged by a unit switch alone (has ${await sugarSubtotal()})`);
+
+await sugarLine().locator('.cntr-cart-subtotal').fill('200.00');
+await sugarLine().locator('.cntr-cart-subtotal').press('Tab'); // fires 'change'
+await p.waitForTimeout(300);
+const totalAfterOvertype = (await p.textContent('.cntr-pos-total')).trim();
+assert(totalAfterOvertype.includes('1,055.00') || totalAfterOvertype.includes('1055.00'), `B3: overtyping the subtotal back-solves the price and the new total sums it in (total now "${totalAfterOvertype}")`);
+
+// Restore Sugar to its original kg/135.00 state — switching back to a unit
+// re-prices from THAT unit's own price, discarding the back-solved one,
+// so the tender demo below still matches its own hardcoded totals.
+await sugarLine().locator('.cntr-cart-unit').selectOption('201');
+await p.waitForTimeout(300);
+assert('1' === (await sugarQty()) && '135.00' === (await sugarSubtotal()), `B3: switching back to kg restores qty and price (qty=${await sugarQty()}, subtotal=${await sugarSubtotal()})`);
+
 await p.keyboard.press('F2'); await p.waitForTimeout(500);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(250);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(350);

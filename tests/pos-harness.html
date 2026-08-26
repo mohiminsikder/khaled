@@ -39,7 +39,10 @@ const CATALOG = [
   {id:103,parent_id:0,sku:'8901234567917',barcode:'',name:'Atta 2kg',name_bn:'আটা ২কেজি',price:'145.0000',tax_class:'',units:[],sellable_qty:'25.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''},
   {id:104,parent_id:0,sku:'8901234567924',barcode:'',name:'Miniket Rice 25kg',name_bn:'মিনিকেট চাল ২৫কেজি',price:'2450.0000',tax_class:'',units:[],sellable_qty:'12.0000',manage_stock:true,backorders:'no',category_ids:[12],category_names:['Rice'],low_stock_amount:'',image_thumb:''},
   {id:105,parent_id:0,sku:'8901234567931',barcode:'',name:'Basmati Rice 1kg',name_bn:'বাসমতি চাল ১কেজি',price:'320.0000',tax_class:'',units:[],sellable_qty:'18.0000',manage_stock:true,backorders:'no',category_ids:[12],category_names:['Rice'],low_stock_amount:'20',image_thumb:''},
-  {id:106,parent_id:0,sku:'8901234567948',barcode:'',name:'Sugar 1kg',name_bn:'চিনি ১কেজি',price:'135.0000',tax_class:'',units:[],sellable_qty:'50.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''},
+  {id:106,parent_id:0,sku:'8901234567948',barcode:'',name:'Sugar 1kg',name_bn:'চিনি ১কেজি',price:'135.0000',tax_class:'',units:[
+    {unit_id:201,code:'kg',name:'Kilogram',name_bn:'কেজি',multiplier:'1.0000',allow_decimal:true,is_default:true,price:'135.0000'},
+    {unit_id:202,code:'g',name:'Gram',name_bn:'গ্রাম',multiplier:'0.0010',allow_decimal:true,is_default:false,price:'0.1350'}
+  ],sellable_qty:'50.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''},
   {id:107,parent_id:0,sku:'8901234567955',barcode:'',name:'Red Lentil 1kg',name_bn:'মসুর ডাল ১কেজি',price:'165.0000',tax_class:'',units:[],sellable_qty:'32.0000',manage_stock:true,backorders:'no',category_ids:[13],category_names:['Grocery'],low_stock_amount:'',image_thumb:''}
 ];
 
