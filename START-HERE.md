@@ -25,6 +25,24 @@ docs/           the plan and its companions
 
 `docs/BLOCKED.md`, `docs/MANUAL-QUEUE.md` and `docs/decisions.md` exist and are where you write.
 
+## Where are you? Work this out first
+
+This plan is larger than one session. **Before starting anything, find out what has already been
+done** — do not assume you are the first run:
+
+```bash
+git log --oneline -25          # completed tasks; commit subjects name them
+cat docs/BLOCKED.md            # tasks that failed and why
+cat docs/decisions.md          # assumptions an earlier run already made
+cat docs/MANUAL-QUEUE.md       # what is waiting on a human
+```
+
+Commit subjects follow the plan's own **Commit** lines, so the last one tells you where the previous
+run stopped. **Start at the first task in `docs/COUNTERV2.md` that has no matching commit**, skipping
+anything listed in `BLOCKED.md` unless the blocker is now resolvable.
+
+If `git log` shows only the import commit and the docs, you are the first run — start at A0.
+
 ## Begin with
 
 **Task A0** in `docs/COUNTERV2.md` — add `wp counter selftest`. Everything after it depends on being
