@@ -162,6 +162,7 @@ class Selftest {
 		$this->test_publisher();
 		$this->test_reserved();
 		$this->test_catalog_delta();
+		$this->test_catalog_barcode();
 		$this->test_shift();
 		$this->test_shift_no_sale();
 		$this->test_customer_index();
@@ -1762,6 +1763,79 @@ class Selftest {
 				&& '' !== $sync_fn_body && str_contains( $sync_fn_body, 'pullFullSnapshot' )
 				&& ! str_contains( $sync_fn_body, 'cursor = 0;' ),
 			wp_json_encode( [ 'snapshot_fn_len' => strlen( $snapshot_fn_body ), 'sync_fn_len' => strlen( $sync_fn_body ) ] )
+		);
+	}
+
+	// -- A3: test_catalog_barcode() -- 4 checks ----------------------------------
+
+	/**
+	 * D3(b) — Catalog::reindex() used to hardcode '' into the barcode column
+	 * and payload; it now reads the _cntr_barcode product meta, falling back
+	 * to SKU when empty. pos.js's buildIndex() already guards on a truthy
+	 * barcode (`if (r.barcode) byBarcode.set(...)`) — unchanged here — so a
+	 * non-empty payload field IS what makes byBarcode non-empty client-side;
+	 * check 3 asserts that server-side condition directly rather than
+	 * re-running pos.js, consistent with every other Layer A check in this
+	 * class.
+	 */
+	private function test_catalog_barcode(): void {
+		global $wpdb;
+		$catalog_table = Install::table( 'catalog_index' );
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture Barcode Product' );
+		$product->set_sku( 'SKU-' . wp_generate_password( 6, false ) );
+		$product->set_regular_price( '15.00' );
+		$product->update_meta_data( '_cntr_barcode', '8901234500017' );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save(); // fires woocommerce_new_product -> bump_product -> reindex()
+		$product_id                  = $product->get_id();
+		$this->product_fixture_ids[] = $product_id;
+
+		// 1. A product with a barcode meta value indexes it, not ''.
+		$row     = $wpdb->get_row( $wpdb->prepare( "SELECT barcode, payload_json FROM {$catalog_table} WHERE product_id = %d AND variation_id = 0", $product_id ), ARRAY_A );
+		$payload = $row ? json_decode( (string) $row['payload_json'], true ) : [];
+		$this->check(
+			'test_catalog_barcode: a product with a barcode meta value indexes it',
+			'8901234500017' === ( $row['barcode'] ?? null ) && '8901234500017' === ( $payload['barcode'] ?? null ),
+			wp_json_encode( [ 'column' => $row['barcode'] ?? null, 'payload' => $payload['barcode'] ?? null ] )
+		);
+
+		// 2. The delta carries it.
+		$cursor_before = (int) $wpdb->get_var( "SELECT MIN(rev) - 1 FROM {$catalog_table} WHERE product_id = " . (int) $product_id );
+		$delta         = \Counter\Stock\Catalog::delta( $cursor_before, 500 );
+		$match         = current( array_filter( $delta['changed'], static fn( $r ) => (int) $r['id'] === $product_id ) );
+		$this->check(
+			'test_catalog_barcode: the delta carries the same barcode',
+			$match && '8901234500017' === ( $match['barcode'] ?? null ),
+			wp_json_encode( $match ?: null )
+		);
+
+		// 3. At least one row in that delta has a non-empty barcode — the
+		// server-side condition that makes the terminal's byBarcode map
+		// non-empty after sync (buildIndex() only inserts a truthy barcode).
+		$non_empty = array_filter( $delta['changed'], static fn( $r ) => '' !== ( $r['barcode'] ?? '' ) );
+		$this->check(
+			'test_catalog_barcode: the delta contains a non-empty barcode (terminal byBarcode would be non-empty)',
+			count( $non_empty ) > 0,
+			'count=' . count( $non_empty )
+		);
+
+		// 4. A product with no _cntr_barcode meta still resolves by SKU — the
+		// indexed barcode falls back to the SKU rather than staying empty.
+		$sku_only = new \WC_Product_Simple();
+		$sku_only->set_name( 'Counter Selftest Fixture Barcode Fallback Product' );
+		$sku_only->set_sku( 'SKUONLY-' . wp_generate_password( 6, false ) );
+		$sku_only->set_regular_price( '9.00' );
+		$sku_only->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$sku_only->save();
+		$sku_only_id                  = $sku_only->get_id();
+		$this->product_fixture_ids[]  = $sku_only_id;
+		$fallback_row = $wpdb->get_row( $wpdb->prepare( "SELECT sku, barcode FROM {$catalog_table} WHERE product_id = %d AND variation_id = 0", $sku_only_id ), ARRAY_A );
+		$this->check(
+			'test_catalog_barcode: a product without one still resolves by SKU',
+			$fallback_row && '' !== $fallback_row['sku'] && $fallback_row['sku'] === $fallback_row['barcode'],
+			wp_json_encode( $fallback_row )
 		);
 	}
 

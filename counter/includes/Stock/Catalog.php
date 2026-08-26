@@ -63,11 +63,21 @@ class Catalog {
 
 		$entity = Entity::resolve( $product );
 
+		// D3 — a real manufacturer barcode lives in its own meta field, distinct
+		// from the internal SKU (the normal case for an imported grocery
+		// catalogue); falling back to SKU means a shop that never sets one is
+		// unaffected, and Terminal::quick_add() already writes new barcodes
+		// straight into the SKU (Terminal.php:150), so they resolve here too.
+		$barcode = (string) $product->get_meta( '_cntr_barcode' );
+		if ( '' === $barcode ) {
+			$barcode = (string) $product->get_sku();
+		}
+
 		$payload = [
 			'id'           => $product->get_id(),
 			'parent_id'    => $is_variation ? $product->get_parent_id() : 0,
 			'sku'          => (string) $product->get_sku(),
-			'barcode'      => '', // P3.1 assigns the real source for this field
+			'barcode'      => $barcode,
 			'name'         => $product->get_name(),
 			'name_bn'      => (string) $product->get_meta( '_cntr_name_bn' ),
 			// The shared catalogue every register downloads must never carry
@@ -95,7 +105,7 @@ class Catalog {
 				$variation_id,
 				$rev,
 				(string) $product->get_sku(),
-				'',
+				$barcode,
 				wp_json_encode( $payload )
 			)
 		);
