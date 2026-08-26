@@ -2721,11 +2721,12 @@ class Selftest {
 		foreach ( $tender_rows as $t ) {
 			$net_tendered += $t['is_change'] ? -1 * (float) $t['amount'] : (float) $t['amount'];
 		}
-		$order_total_1 = (float) wc_get_order( $order_id_1 )->get_total();
+		$order_1_for_total = wc_get_order( $order_id_1 );
+		$order_total_1     = $order_1_for_total ? (float) $order_1_for_total->get_total() : null;
 		$this->check(
 			'test_sale_idempotent: cntr_tenders rows sum, net of is_change, to the order total',
-			abs( $net_tendered - $order_total_1 ) < 0.01,
-			"net={$net_tendered} total={$order_total_1}"
+			$order_1_for_total instanceof \WC_Order && abs( $net_tendered - $order_total_1 ) < 0.01,
+			"net={$net_tendered} total=" . ( null === $order_total_1 ? '(order missing)' : $order_total_1 )
 		);
 
 		// 8. A sale posted with no open shift is refused with 409 and creates

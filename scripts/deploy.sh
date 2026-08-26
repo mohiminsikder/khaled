@@ -37,10 +37,21 @@ RSH="ssh -i $KEY -p $CNTR_SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=acc
 PLUGIN="$CNTR_WP_PATH/wp-content/plugins/counter"
 WP="cd '$CNTR_WP_PATH' && wp"
 
+# rsync is assumed by the sandbox this script was written for, but is absent
+# from plain Git-for-Windows Bash. Fall back to tar-over-ssh, which every SSH
+# host has; same net effect (full mirror, excluding tests/.git/node_modules),
+# just without rsync's incremental transfer.
+HAVE_RSYNC=0
+command -v rsync >/dev/null 2>&1 && HAVE_RSYNC=1
+
 case "${1:-}" in
   pull)
     rm -rf "$ROOT/live"; mkdir -p "$ROOT/live"
-    rsync -az -e "$RSH" "$REMOTE:$PLUGIN/" "$ROOT/live/"
+    if [[ "$HAVE_RSYNC" == 1 ]]; then
+      rsync -az -e "$RSH" "$REMOTE:$PLUGIN/" "$ROOT/live/"
+    else
+      ssh "${SSH_OPTS[@]}" "$REMOTE" "tar czf - -C '$PLUGIN' ." | tar xzf - -C "$ROOT/live"
+    fi
     echo "pulled -> $ROOT/live"
     ;;
 
@@ -49,9 +60,16 @@ case "${1:-}" in
     STAMP="$(date +%Y%m%d-%H%M%S)"
     # Back up before overwriting. Never skip this.
     ssh "${SSH_OPTS[@]}" "$REMOTE" "cp -a '$PLUGIN' '$PLUGIN.bak-$STAMP' 2>/dev/null || true"
-    rsync -az --delete \
-      --exclude 'tests/' --exclude '.git/' --exclude 'node_modules/' \
-      -e "$RSH" "$ROOT/counter/" "$REMOTE:$PLUGIN/"
+    if [[ "$HAVE_RSYNC" == 1 ]]; then
+      rsync -az --delete \
+        --exclude 'tests/' --exclude '.git/' --exclude 'node_modules/' \
+        -e "$RSH" "$ROOT/counter/" "$REMOTE:$PLUGIN/"
+    else
+      echo "rsync not found locally — falling back to tar over ssh" >&2
+      ssh "${SSH_OPTS[@]}" "$REMOTE" "rm -rf '$PLUGIN' && mkdir -p '$PLUGIN'"
+      tar czf - -C "$ROOT/counter" --exclude='tests' --exclude='.git' --exclude='node_modules' . \
+        | ssh "${SSH_OPTS[@]}" "$REMOTE" "tar xzf - -C '$PLUGIN'"
+    fi
     echo "pushed. rollback: mv '$PLUGIN.bak-$STAMP' '$PLUGIN'"
     ;;
 
