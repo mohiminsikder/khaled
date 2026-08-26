@@ -143,6 +143,7 @@ class Selftest {
 		$this->settings_touched    = false;
 
 		$this->test_version();
+		$this->test_cli_selftest();
 		$this->test_schema();
 		$this->test_wc_api();
 		$this->test_wc_settings();
@@ -281,6 +282,49 @@ class Selftest {
 			'test_version: CNTR_DB_VER matches Install::VERSION',
 			CNTR_DB_VER === Install::VERSION,
 			'CNTR_DB_VER=' . CNTR_DB_VER . ' Install::VERSION=' . Install::VERSION
+		);
+	}
+
+	// -- A0: test_cli_selftest() -- 3 checks -------------------------------------
+
+	/**
+	 * A0 — `wp counter selftest` runs this exact class from a terminal.
+	 * Exercises the real functions the command calls (Cli::filter_results()
+	 * and Cli::exit_code_for()) against synthetic result sets rather than
+	 * shelling out to a second `wp` process, which would re-run this whole
+	 * suite (fixtures and all) recursively from inside itself.
+	 */
+	private function test_cli_selftest(): void {
+		$is_wp_cli = defined( 'WP_CLI' ) && \WP_CLI;
+		if ( $is_wp_cli && class_exists( '\WP_CLI\Dispatcher\RootCommand' ) && method_exists( '\WP_CLI', 'get_root_command' ) ) {
+			$path  = [ 'counter', 'selftest' ];
+			$found = (bool) \WP_CLI::get_root_command()->find_subcommand( $path );
+			$this->check( 'test_cli_selftest: wp counter selftest is registered', $found, $found ? '' : 'find_subcommand() did not resolve counter selftest' );
+		} else {
+			$this->check(
+				'test_cli_selftest: wp counter selftest is registered [SKIPPED — WP-CLI not loaded in this context]',
+				true,
+				$is_wp_cli ? 'WP-CLI dispatcher API unavailable' : 'not running under WP-CLI'
+			);
+		}
+
+		$sample = [
+			[ 'label' => 'test_alpha: one', 'pass' => true, 'detail' => '' ],
+			[ 'label' => 'test_alpha: two', 'pass' => true, 'detail' => '' ],
+			[ 'label' => 'test_beta: one', 'pass' => true, 'detail' => '' ],
+		];
+		$filtered = \Counter\Cli::filter_results( $sample, 'test_alpha' );
+		$this->check(
+			'test_cli_selftest: --filter narrows to the matching subset',
+			2 === count( $filtered ) && count( $filtered ) < count( $sample ),
+			sprintf( 'filtered=%d of %d', count( $filtered ), count( $sample ) )
+		);
+
+		$failing = [ [ 'label' => 'x', 'pass' => false, 'detail' => 'boom' ] ];
+		$passing = [ [ 'label' => 'x', 'pass' => true, 'detail' => '' ] ];
+		$this->check(
+			'test_cli_selftest: exit code is non-zero on any failing check, zero otherwise',
+			0 !== \Counter\Cli::exit_code_for( $failing ) && 0 === \Counter\Cli::exit_code_for( $passing )
 		);
 	}
 

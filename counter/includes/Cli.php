@@ -5,6 +5,7 @@ use Counter\Stock\Ledger;
 use Counter\Stock\Batches;
 use Counter\Stock\Publisher;
 use Counter\Install;
+use Counter\Admin\Selftest;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -31,6 +32,94 @@ class Cli {
 		}
 		\WP_CLI::add_command( 'counter rebuild-stock', [ self::class, 'rebuild_stock' ] );
 		\WP_CLI::add_command( 'counter rebuild-rollup', [ self::class, 'rebuild_rollup' ] );
+		\WP_CLI::add_command( 'counter selftest', [ self::class, 'selftest' ] );
+	}
+
+	/**
+	 * A0 — the self-test suite, reachable from a terminal instead of only
+	 * `admin.php?page=counter-health&selftest=1`. Runs the exact same
+	 * ( new Selftest() )->run() the Health screen does; nothing about the
+	 * suite itself changes, only where it can be triggered from.
+	 *
+	 * Exits non-zero on any failing check (after --filter narrows the set)
+	 * so an unattended run can gate a deploy on this command's exit code.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--format=<format>]
+	 * : Render as a labelled pass/fail list (default) or as JSON.
+	 * ---
+	 * default: text
+	 * options:
+	 *   - text
+	 *   - json
+	 * ---
+	 *
+	 * [--filter=<substring>]
+	 * : Only report checks whose label contains this substring — e.g.
+	 * --filter=test_pos_wiring for one method's checks. The full suite still
+	 * runs; this narrows what is printed and what the exit code reflects.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp counter selftest
+	 *     wp counter selftest --format=json
+	 *     wp counter selftest --filter=test_pos_wiring
+	 */
+	public static function selftest( array $args, array $assoc_args ): void {
+		$filter = isset( $assoc_args['filter'] ) ? (string) $assoc_args['filter'] : '';
+		$format = $assoc_args['format'] ?? 'text';
+
+		$report  = ( new Selftest() )->run();
+		$results = self::filter_results( $report['results'], $filter );
+
+		if ( '' !== $filter && empty( $results ) ) {
+			\WP_CLI::warning( sprintf( 'No checks matched --filter="%s".', $filter ) );
+		}
+
+		$pass = 0;
+		$fail = 0;
+		foreach ( $results as $r ) {
+			$r['pass'] ? $pass++ : $fail++;
+		}
+
+		if ( 'json' === $format ) {
+			\WP_CLI::log( wp_json_encode( [ 'results' => $results, 'pass' => $pass, 'fail' => $fail ] ) );
+		} else {
+			foreach ( $results as $r ) {
+				$mark = $r['pass'] ? '✓' : '✗';
+				\WP_CLI::log( $mark . ' ' . $r['label'] . ( $r['detail'] ? ' — ' . $r['detail'] : '' ) );
+			}
+			\WP_CLI::log( '' );
+			\WP_CLI::log( sprintf( '%d / %d passed', $pass, $pass + $fail ) );
+		}
+
+		\WP_CLI::halt( self::exit_code_for( $results ) );
+	}
+
+	/** Substring match on the check label — labels are consistently prefixed `test_method_name: ...`. */
+	public static function filter_results( array $results, string $filter ): array {
+		if ( '' === $filter ) {
+			return $results;
+		}
+		return array_values(
+			array_filter(
+				$results,
+				static function ( $r ) use ( $filter ) {
+					return false !== stripos( $r['label'], $filter );
+				}
+			)
+		);
+	}
+
+	/** 0 only when every result in the given (possibly filtered) set passed. */
+	public static function exit_code_for( array $results ): int {
+		foreach ( $results as $r ) {
+			if ( empty( $r['pass'] ) ) {
+				return 1;
+			}
+		}
+		return 0;
 	}
 
 	/**
