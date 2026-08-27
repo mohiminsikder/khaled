@@ -19,6 +19,14 @@ Format: `- [ ] <task id> — <what to do> — <what proves it>`
       the tender screen, and that Refund is no longer offered to them. Verified programmatically live
       (`docs/decisions.md`/commit ac410ca — cashier has cntr_credit_sale=true, cntr_refund=false) but
       never seen through an actual cashier's own screen.
+- [ ] C5 — Create a second register (via the new Locations/Registers admin screens), bookmark both
+      registers' till URLs, and sell from both at once. The screens themselves and
+      `Registers::generate_unique_prefix()`/`create()` are reflection-probe-verified live (6/6), but
+      never exercised through two real concurrent till sessions.
+- [ ] C8 — Print one label sheet from the new Label Designer's live preview and hold it against a real
+      shelf/roll. `Rest\Labels::build_preview()` and `Docs\Labels::render_label()` are reflection-probe
+      and REST-dispatch verified (field toggles, font size, barcode type, sheet count) — never
+      confirmed against an actual thermal/label printer's own physical output.
 
 ## Standing checks — every phase
 
