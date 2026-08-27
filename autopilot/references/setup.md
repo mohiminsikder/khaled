@@ -62,10 +62,15 @@ The single highest-value setup step. A run that hits a usage wall at 2am with on
 account configured stops until the reset; with two, it pauses for about thirty seconds.
 
 ```bash
-CLAUDE_CONFIG_DIR=~/.claude-acct2 claude     # /login as the second account, /exit
+./scripts/accounts-add.sh acct2      # opens Claude Code; type /login, then /exit
+./scripts/accounts-add.sh --check    # proves both accounts answer before you rely on them
 ```
 
-Then in `.autopilot/accounts.env`:
+It must be a **different Claude account** — a different email with its own
+subscription. The same account signed in twice shares one usage limit, so it buys
+nothing. That is the one setup mistake that looks fine until 2am.
+
+The helper just edits `.autopilot/accounts.env`, which you can also write yourself:
 
 ```bash
 AP_PROFILES="default ~/.claude-acct2"

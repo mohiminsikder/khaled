@@ -42,6 +42,20 @@ directory, and the driver picks between them with an environment variable.
 
 ### One-time setup, per account
 
+The helper does all of this and verifies the result:
+
+```bash
+./scripts/accounts-add.sh acct2     # opens Claude Code, you type /login then /exit
+./scripts/accounts-add.sh --check   # confirms both accounts actually answer
+```
+
+**The second account must be a genuinely different Claude account** — a different
+email with its own subscription. Signing the same account in twice buys nothing,
+because the usage limit belongs to the account, not to the terminal window. This is
+the one setup mistake that looks like it worked and then does not help at 2am.
+
+By hand, if you prefer:
+
 ```bash
 # Account 2. Do this once, interactively — it is the only interactive step.
 CLAUDE_CONFIG_DIR=~/.claude-acct2 claude

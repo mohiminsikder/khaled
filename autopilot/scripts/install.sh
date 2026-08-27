@@ -16,7 +16,8 @@ command -v jq >/dev/null || { echo "jq is required (the hooks parse stdin with i
 mkdir -p .claude/hooks scripts .autopilot
 cp "$SKILL_DIR"/assets/hooks/*.sh .claude/hooks/
 cp "$SKILL_DIR"/scripts/notify.sh "$SKILL_DIR"/scripts/preflight.sh \
-   "$SKILL_DIR"/scripts/autopilot-run.sh "$SKILL_DIR"/scripts/autopilot-report.sh scripts/
+   "$SKILL_DIR"/scripts/autopilot-run.sh "$SKILL_DIR"/scripts/autopilot-report.sh \
+   "$SKILL_DIR"/scripts/accounts-add.sh scripts/
 mkdir -p scripts/lib && cp "$SKILL_DIR"/scripts/lib/*.sh scripts/lib/
 chmod +x .claude/hooks/*.sh scripts/*.sh
 
@@ -69,5 +70,6 @@ if [[ "${1:-}" == "--systemd" ]]; then
 fi
 
 echo
-echo "Now verify the notification channel before you trust it overnight:"
-echo "  ./scripts/notify.sh 'test — you should see this on your phone'"
+echo "Two things before you trust it overnight:"
+echo "  ./scripts/notify.sh 'test'          # confirm the phone alert arrives"
+echo "  ./scripts/accounts-add.sh acct2     # add a second account so a 2am limit costs 30s"
