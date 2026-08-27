@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; background:#e6eaf2; font-family:'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing:antialiased; }
+  a { color:#1f5fd6; } a:hover { color:#164aa8; }
+  button { font-family:inherit; }
+</style>
+</helmet>
+
+<div style="padding:24px; display:flex; flex-direction:column; gap:16px; align-items:flex-start;">
+
+  <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; background:#ffffff; border:1px solid #d7dfec; border-radius:12px; padding:10px 12px;">
+    <span style="font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#5f6f88; padding-right:4px;">Mockup</span>
+    <div style="display:flex; gap:4px; background:#f1f4fa; border-radius:9px; padding:3px;">
+      <sc-for list="{{ screenTabs }}" as="t" hint-placeholder-count="8">
+        <button onClick="{{ t.go }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+    <span style="width:1px; height:26px; background:#e2e8f2;"></span>
+    <div style="display:flex; gap:4px; background:#f1f4fa; border-radius:9px; padding:3px;">
+      <sc-for list="{{ optionTabs }}" as="t" hint-placeholder-count="6">
+        <button onClick="{{ t.go }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+    <span style="font-size:12px; color:#5f6f88;">{{ hintText }}</span>
+  </div>
+
+  <div style="{{ frameStyle }}">
+
+    <sc-if value="{{ isBoot }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; inset:0; background:linear-gradient(160deg,#f7f9fd 0%,#eaf0fb 100%); display:flex; align-items:center; justify-content:center; z-index:60;">
+        <div style="width:520px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:18px; box-shadow:0 24px 60px rgba(21,32,51,.12); padding:32px;">
+          <div style="display:flex; align-items:center; gap:12px; margin-bottom:6px;">
+            <span style="width:44px; height:44px; border-radius:12px; background:var(--c-warn-soft); color:var(--c-warn); display:flex; align-items:center; justify-content:center;">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"></path><path d="M12 16.5h.01"></path><path d="M10.3 3.6 2.5 17.4A2 2 0 0 0 4.2 20.4h15.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"></path></svg>
+            </span>
+            <h1 style="margin:0; font-size:26px; font-weight:700; color:var(--c-text);">{{ S.bootTitle }}</h1>
+          </div>
+          <p style="margin:0 0 22px; font-size:16px; color:var(--c-muted);">{{ S.bootSub }}</p>
+          <label style="display:block; font-size:15px; font-weight:600; color:var(--c-muted); margin-bottom:8px;">{{ S.openingFloat }}</label>
+          <div style="display:flex; align-items:center; gap:10px; border:2px solid var(--c-border); border-radius:12px; padding:0 16px; background:var(--c-panel); margin-bottom:22px;">
+            <span style="font-size:28px; color:var(--c-muted);">৳</span>
+            <span style="flex:1 1 auto; font-size:34px; font-weight:700; color:var(--c-text); padding:12px 0; font-variant-numeric:tabular-nums;">{{ floatValue }}</span>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:22px;">
+            <sc-for list="{{ bootKeys }}" as="k" hint-placeholder-count="12">
+              <button onClick="{{ k.press }}" style="{{ k.style }}">{{ k.label }}</button>
+            </sc-for>
+          </div>
+          <button onClick="{{ openShift }}" style="width:100%; height:72px; border:none; border-radius:14px; background:var(--c-success); color:#fff; font-size:22px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:12px; cursor:pointer; box-shadow:0 8px 18px rgba(11,138,75,.28);">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19.5 7"></path></svg>
+            {{ S.openShift }}
+          </button>
+        </div>
+      </div>
+    </sc-if>
+
+    <header style="flex:0 0 auto; height:52px; display:flex; align-items:center; gap:14px; padding:0 16px; background:var(--c-surface); border-bottom:1px solid var(--c-border);">
+      <span style="display:flex; align-items:center; gap:8px; font-size:16px; font-weight:700; color:var(--c-text); letter-spacing:.01em;">
+        <span style="width:26px; height:26px; border-radius:7px; background:var(--c-accent); color:#fff; display:flex; align-items:center; justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"></path><path d="M4 12h16"></path><path d="M4 17h10"></path></svg>
+        </span>
+        Counter
+      </span>
+      <span style="display:flex; align-items:center; gap:6px; font-size:14px; font-weight:600; color:var(--c-muted); padding-left:6px; border-left:1px solid var(--c-line);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M3 9h18"></path><path d="M8 14h4"></path></svg>
+        {{ S.register }} 2
+      </span>
+      <span style="font-size:14px; font-weight:600; color:var(--c-muted); font-variant-numeric:tabular-nums;">{{ S.shift }} R1-000042</span>
+      <span style="display:flex; align-items:center; gap:6px; font-size:14px; font-weight:600; color:var(--c-muted);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"></circle><path d="M4.5 19.5a7.5 7.5 0 0 1 15 0"></path></svg>
+        Nusrat J.
+      </span>
+      <span style="{{ metaTimeStyle }}">27 Aug 2026 · 14:32</span>
+      <span style="{{ netStyle }}">{{ netLabel }}</span>
+      <sc-if value="{{ offline }}" hint-placeholder-val="{{ false }}">
+        <span style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:#fff; background:#8a1c1c; padding:5px 10px; border-radius:999px;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10.5" width="16" height="10" rx="2"></rect><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"></path></svg>
+          {{ S.outboxLocked }}
+        </span>
+      </sc-if>
+      <span style="margin-left:auto; display:flex; gap:8px;">
+        <sc-for list="{{ toolbarBtns }}" as="b" hint-placeholder-count="4">
+          <button onClick="{{ b.go }}" style="{{ b.style }}">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ b.d }}"></path></svg>
+            {{ b.label }}
+          </button>
+        </sc-for>
+      </span>
+    </header>
+
+    <div style="flex:1 1 auto; min-height:0; display:flex; gap:12px; padding:12px;">
+
+      <div style="flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:10px;">
+
+        <div style="flex:0 0 auto; display:flex; gap:10px; align-items:stretch;">
+          <button style="flex:0 0 auto; width:56px; border:1px solid var(--c-border); background:var(--c-surface); border-radius:12px; color:var(--c-accent); display:flex; align-items:center; justify-content:center; cursor:pointer;" title="Search products by">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4.5 4.5"></path></svg>
+          </button>
+          <div style="flex:1 1 auto; min-width:0; display:flex; align-items:center; gap:12px; background:var(--c-surface); border:2px solid var(--c-accent); border-radius:12px; padding:0 16px; box-shadow:0 0 0 4px rgba(31,95,214,.10);">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--c-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6v12"></path><path d="M7.5 6v12"></path><path d="M11 6v12"></path><path d="M14.5 6v12"></path><path d="M18 6v12"></path><path d="M20.5 6v12"></path></svg>
+            <span style="flex:1 1 auto; font-size:20px; color:var(--c-muted); padding:15px 0;">{{ S.searchPlaceholder }}</span>
+            <span style="width:2px; height:26px; background:var(--c-accent); animation:none;"></span>
+          </div>
+          <sc-if value="{{ gridIsDrawer }}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{ toggleProducts }}" style="{{ productsBtnStyle }}">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"></rect><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"></rect><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"></rect></svg>
+              {{ S.products }}
+            </button>
+          </sc-if>
+        </div>
+
+        <sc-if value="{{ gridIsTab }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ tabPanelStyle }}">
+            <div style="flex:0 0 auto; display:flex; gap:2px; padding:6px 6px 0; border-bottom:1px solid var(--c-line);">
+              <sc-for list="{{ resultTabs }}" as="t" hint-placeholder-count="2">
+                <button onClick="{{ t.go }}" style="{{ t.style }}">{{ t.label }}</button>
+              </sc-for>
+              <span style="margin-left:auto; display:flex; gap:6px; padding:0 4px 6px;">
+                <sc-for list="{{ chips }}" as="c" hint-placeholder-count="5">
+                  <button onClick="{{ c.go }}" style="{{ c.style }}">{{ c.label }}</button>
+                </sc-for>
+              </span>
+            </div>
+            <div style="flex:1 1 auto; min-height:0; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; padding:10px; align-content:start;">
+              <sc-for list="{{ tiles }}" as="p" hint-placeholder-count="8">
+                <button onClick="{{ p.add }}" style="{{ p.style }}">
+                  <span style="font-size:15px; font-weight:600; color:var(--c-text); line-height:1.25; text-align:left;">{{ p.name }}</span>
+                  <span style="display:flex; align-items:baseline; justify-content:space-between; gap:6px; width:100%; white-space:nowrap;">
+                    <span style="font-size:16px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">{{ p.price }}</span>
+                    <span style="font-size:13px; color:var(--c-muted); font-variant-numeric:tabular-nums;">{{ p.stock }}</span>
+                  </span>
+                  <sc-if value="{{ p.low }}" hint-placeholder-val="{{ false }}">
+                    <span style="align-self:flex-start; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--c-warn); background:var(--c-warn-soft); border-radius:5px; padding:2px 6px;">{{ S.lowStock }}</span>
+                  </sc-if>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <section style="flex:1 1 auto; min-height:0; display:flex; flex-direction:column; background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; overflow:hidden; position:relative;">
+          <div style="flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--c-line); background:var(--c-panel);">
+            <span style="font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--c-muted);">{{ S.ticket }}</span>
+            <span style="font-size:13px; color:var(--c-muted); font-variant-numeric:tabular-nums;">#{{ receiptNo }}</span>
+            <sc-if value="{{ hasCustomer }}" hint-placeholder-val="{{ true }}">
+              <span style="display:flex; align-items:center; gap:8px; margin-left:6px; padding:4px 10px 4px 6px; border-radius:999px; background:var(--c-accent-soft); border:1px solid #cfe0ff;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.2"></circle><path d="M4.5 19.5a7.5 7.5 0 0 1 15 0"></path></svg>
+                <span style="font-size:14px; font-weight:700; color:var(--c-accent);">{{ customerName }}</span>
+                <span style="font-size:13px; color:#3d6cbf; font-variant-numeric:tabular-nums;">{{ S.owes }} {{ customerOwes }}</span>
+                <button onClick="{{ clearCustomer }}" style="width:22px; height:22px; border-radius:999px; border:none; background:#cfe0ff; color:#20458c; font-size:14px; line-height:1; cursor:pointer;">×</button>
+              </span>
+            </sc-if>
+            <span style="margin-left:auto; display:flex; gap:6px;">
+              <button onClick="{{ prevLine }}" style="{{ navBtnStyle }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 6-6 6 6"></path></svg>
+                {{ S.prevLine }}
+              </button>
+              <button onClick="{{ nextLine }}" style="{{ navBtnStyle }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 10 6 6 6-6"></path></svg>
+                {{ S.nextLine }}
+              </button>
+            </span>
+          </div>
+
+          <ul style="flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden; list-style:none; margin:0; padding:0;">
+            <sc-for list="{{ lines }}" as="l" hint-placeholder-count="5">
+              <li onClick="{{ l.select }}" style="{{ l.style }}">
+                <span style="flex:0 0 26px; font-size:14px; font-weight:700; color:var(--c-muted); font-variant-numeric:tabular-nums; text-align:right;">{{ l.n }}</span>
+                <span style="flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:3px;">
+                  <span style="font-size:19px; font-weight:600; color:var(--c-text); line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ l.name }}</span>
+                  <span style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span style="font-size:14px; color:var(--c-muted); font-variant-numeric:tabular-nums;">{{ l.qtyLine }}</span>
+                    <sc-if value="{{ l.hasUnit }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:13px; font-weight:600; color:var(--c-text); background:var(--c-panel); border:1px solid var(--c-border); border-radius:7px; padding:3px 8px; display:flex; align-items:center; gap:5px;">
+                        {{ l.unit }}
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m6 10 6 6 6-6"></path></svg>
+                      </span>
+                    </sc-if>
+                    <sc-if value="{{ l.hasStockHint }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:13px; color:var(--c-muted); font-variant-numeric:tabular-nums;">{{ l.stockHint }}</span>
+                    </sc-if>
+                    <sc-if value="{{ l.hasDiscount }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:13px; font-weight:700; color:var(--c-success); background:var(--c-success-soft); border-radius:6px; padding:2px 7px; white-space:nowrap;">{{ l.discount }}</span>
+                    </sc-if>
+                    <sc-if value="{{ l.oos }}" hint-placeholder-val="{{ false }}">
+                      <span style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#fff; background:var(--c-danger); border-radius:5px; padding:2px 7px;">{{ S.outOfStock }}</span>
+                    </sc-if>
+                  </span>
+                </span>
+                <span style="{{ lineTotalStyle }}">{{ l.total }}</span>
+                <span style="flex:0 0 auto; display:flex; gap:6px;">
+                  <button style="{{ l.decStyle }}">−</button>
+                  <button style="{{ l.incStyle }}">+</button>
+                  <button style="{{ l.remStyle }}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14"></path><path d="M9.5 7V5.5h5V7"></path><path d="M7 7l.8 12.2h8.4L17 7"></path></svg>
+                  </button>
+                </span>
+              </li>
+            </sc-for>
+          </ul>
+
+          <div style="flex:0 0 auto; border-top:1px solid var(--c-line); background:var(--c-panel); padding:8px 14px; display:grid; grid-template-columns:1fr 1fr; gap:2px 24px;">
+            <sc-for list="{{ footerRows }}" as="r" hint-placeholder-count="4">
+              <div style="display:flex; align-items:center; gap:8px; height:32px;">
+                <span style="flex:1 1 auto; font-size:15px; color:var(--c-muted);">{{ r.label }}</span>
+                <span style="{{ r.valStyle }}">{{ r.value }}</span>
+                <sc-if value="{{ r.editable }}" hint-placeholder-val="{{ true }}">
+                  <button onClick="{{ r.edit }}" style="flex:0 0 auto; width:32px; height:32px; border-radius:8px; border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-accent); display:flex; align-items:center; justify-content:center; cursor:pointer;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10-10-4-4L4 16v4Z"></path><path d="m14.5 5.5 4 4"></path></svg>
+                  </button>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ showProducts }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute; inset:0; background:rgba(21,32,51,.20); display:flex; justify-content:flex-end;">
+              <div style="width:74%; height:100%; background:var(--c-surface); border-left:1px solid var(--c-border); box-shadow:-14px 0 34px rgba(21,32,51,.14); display:flex; flex-direction:column;">
+                <div style="flex:0 0 auto; display:flex; align-items:center; gap:8px; padding:10px 12px; border-bottom:1px solid var(--c-line);">
+                  <span style="font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--c-muted);">{{ S.products }}</span>
+                  <span style="display:flex; gap:6px; flex-wrap:wrap;">
+                    <sc-for list="{{ chips }}" as="c" hint-placeholder-count="5">
+                      <button onClick="{{ c.go }}" style="{{ c.style }}">{{ c.label }}</button>
+                    </sc-for>
+                  </span>
+                  <button onClick="{{ toggleProducts }}" style="margin-left:auto; height:38px; padding:0 14px; border-radius:9px; border:1px solid var(--c-border); background:var(--c-panel); color:var(--c-text); font-size:15px; font-weight:600; cursor:pointer;">{{ S.close }}</button>
+                </div>
+                <div style="flex:1 1 auto; min-height:0; overflow:auto; display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:8px; padding:10px; align-content:start;">
+                  <sc-for list="{{ tiles }}" as="p" hint-placeholder-count="10">
+                    <button onClick="{{ p.add }}" style="{{ p.style }}">
+                      <span style="font-size:15px; font-weight:600; color:var(--c-text); line-height:1.25; text-align:left;">{{ p.name }}</span>
+                      <span style="display:flex; align-items:baseline; justify-content:space-between; gap:6px; width:100%; white-space:nowrap;">
+                        <span style="font-size:16px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">{{ p.price }}</span>
+                        <span style="font-size:13px; color:var(--c-muted); font-variant-numeric:tabular-nums;">{{ p.stock }}</span>
+                      </span>
+                      <sc-if value="{{ p.low }}" hint-placeholder-val="{{ false }}">
+                        <span style="align-self:flex-start; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--c-warn); background:var(--c-warn-soft); border-radius:5px; padding:2px 6px;">{{ S.lowStock }}</span>
+                      </sc-if>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </section>
+
+        <div style="flex:0 0 auto; display:flex; gap:8px; align-items:center;">
+          <span style="font-size:13px; color:var(--c-muted); padding-right:2px; white-space:nowrap;">{{ S.usual }}</span>
+          <span style="flex:1 1 auto; min-width:0; display:flex; gap:8px; overflow-x:auto;">
+            <sc-for list="{{ usual }}" as="u" hint-placeholder-count="3">
+              <button style="flex:0 0 auto; height:42px; padding:0 14px; border-radius:999px; border:1px solid #cfe0ff; background:var(--c-accent-soft); color:#20458c; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap;">{{ u }}</button>
+            </sc-for>
+          </span>
+          <span style="flex:0 0 auto; display:flex; gap:8px;">
+            <sc-for list="{{ docBtns }}" as="b" hint-placeholder-count="4">
+              <button onClick="{{ b.go }}" style="{{ b.style }}">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ b.d }}"></path></svg>
+                {{ b.label }}
+              </button>
+            </sc-for>
+          </span>
+        </div>
+      </div>
+
+      <div style="{{ rightColStyle }}">
+        <div style="flex:0 0 auto; display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <sc-for list="{{ actions }}" as="a" hint-placeholder-count="10">
+            <button onClick="{{ a.go }}" style="{{ a.style }}">
+              <span style="position:absolute; top:5px; right:7px; font-size:11px; font-weight:700; color:var(--c-muted); background:rgba(255,255,255,.75); border-radius:4px; padding:1px 4px; font-variant-numeric:tabular-nums;">{{ a.key }}</span>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.d }}"></path></svg>
+              <span style="font-size:14px; font-weight:700; letter-spacing:.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;">{{ a.label }}</span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="flex:1 1 auto; min-height:0; display:grid; grid-template-columns:repeat(4,1fr); grid-auto-rows:1fr; gap:7px;">
+          <sc-for list="{{ keypad }}" as="k" hint-placeholder-count="16">
+            <button onClick="{{ k.press }}" style="{{ k.style }}">{{ k.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <footer style="flex:0 0 auto; height:112px; display:flex; align-items:stretch; gap:12px; padding:0 12px 12px;">
+      <div style="flex:1 1 auto; display:flex; align-items:center; gap:28px; background:var(--c-surface); border:1px solid var(--c-border); border-radius:14px; padding:0 24px;">
+        <span style="display:flex; flex-direction:column; gap:2px; white-space:nowrap;">
+          <span style="font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--c-muted);">{{ S.items }}</span>
+          <span style="font-size:26px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">{{ itemCount }}</span>
+        </span>
+        <span style="display:flex; flex-direction:column; gap:2px; white-space:nowrap;">
+          <span style="font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--c-muted);">{{ S.subtotal }}</span>
+          <span style="font-size:26px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">{{ subtotal }}</span>
+        </span>
+        <span style="display:flex; flex-direction:column; gap:2px; white-space:nowrap;">
+          <span style="font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--c-success);">{{ S.saved }}</span>
+          <span style="font-size:26px; font-weight:700; color:var(--c-success); font-variant-numeric:tabular-nums;">{{ saved }}</span>
+        </span>
+        <span style="margin-left:auto; display:flex; align-items:baseline; gap:16px; white-space:nowrap;">
+          <span style="font-size:18px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--c-muted);">{{ S.total }}</span>
+          <span style="{{ totalValueStyle }}">{{ total }}</span>
+        </span>
+      </div>
+      <button onClick="{{ openTender }}" style="{{ payBtnStyle }}; border:none; border-radius:14px; background:var(--c-success); color:#fff; display:flex; align-items:center; justify-content:center; gap:14px; font-size:32px; font-weight:800; letter-spacing:.02em; cursor:pointer; box-shadow:0 8px 20px rgba(11,138,75,.30); position:relative;">
+        <span style="position:absolute; top:8px; right:12px; font-size:13px; font-weight:700; background:rgba(255,255,255,.22); border-radius:5px; padding:2px 7px;">F2</span>
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"></rect><circle cx="12" cy="12" r="2.6"></circle><path d="M6 12h.01"></path><path d="M18 12h.01"></path></svg>
+        {{ S.pay }}
+      </button>
+    </footer>
+
+    <sc-if value="{{ showModal }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; inset:0; background:rgba(21,32,51,.42); display:flex; align-items:center; justify-content:center; z-index:50; padding:20px;">
+        <div style="{{ modalBoxStyle }}">
+          <div style="flex:0 0 auto; display:flex; align-items:center; gap:12px; padding:18px 22px; border-bottom:1px solid var(--c-line);">
+            <span style="{{ modalIconStyle }}">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ modalIconD }}"></path></svg>
+            </span>
+            <h2 style="margin:0; font-size:22px; font-weight:700; color:var(--c-text); white-space:nowrap;">{{ modalTitle }}</h2>
+            <button onClick="{{ closeModal }}" style="margin-left:auto; width:40px; height:40px; border-radius:10px; border:1px solid var(--c-border); background:var(--c-panel); color:var(--c-muted); font-size:20px; line-height:1; cursor:pointer;">×</button>
+          </div>
+
+          <div style="flex:1 1 auto; min-height:0; overflow:auto; padding:20px 22px;">
+
+            <sc-if value="{{ isTender }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; gap:22px; align-items:flex-start;">
+                <div style="flex:1 1 auto; min-width:0;">
+                  <div style="font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--c-muted); margin-bottom:10px;">{{ S.method }}</div>
+                  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:18px;">
+                    <sc-for list="{{ methods }}" as="m" hint-placeholder-count="7">
+                      <button onClick="{{ m.pick }}" style="{{ m.style }}">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ m.d }}"></path></svg>
+                        <span style="font-size:15px; font-weight:700;">{{ m.label }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+                    <sc-for list="{{ tenderRows }}" as="r" hint-placeholder-count="2">
+                      <div style="display:flex; align-items:center; gap:10px; background:var(--c-panel); border:1px solid var(--c-border); border-radius:12px; padding:10px 12px;">
+                        <span style="{{ r.chipStyle }}">{{ r.method }}</span>
+                        <span style="flex:1 1 auto; text-align:right; font-size:26px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">{{ r.amount }}</span>
+                        <button onClick="{{ r.remove }}" style="flex:0 0 auto; width:40px; height:40px; border-radius:10px; border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-danger); font-size:18px; line-height:1; cursor:pointer;">×</button>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <sc-if value="{{ creditWarn }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex; gap:10px; align-items:flex-start; background:var(--c-danger-soft); border:1px solid #f6c9c9; border-radius:12px; padding:12px 14px; margin-bottom:12px;">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto; margin-top:1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5"></path><path d="M12 16.2h.01"></path></svg>
+                      <span style="font-size:15px; font-weight:600; color:#8f1f1f; line-height:1.4;">{{ creditWarnText }}</span>
+                    </div>
+                  </sc-if>
+                  <div style="display:flex; gap:10px; align-items:flex-start; background:var(--c-accent-soft); border:1px solid #cfe0ff; border-radius:12px; padding:12px 14px;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto; margin-top:1px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5.5"></path><path d="M12 7.8h.01"></path></svg>
+                    <span style="font-size:15px; color:#20458c; line-height:1.4;">{{ accountAfter }}</span>
+                  </div>
+                </div>
+
+                <div style="flex:0 0 300px; display:flex; flex-direction:column; gap:10px;">
+                  <div style="background:var(--c-panel); border:1px solid var(--c-border); border-radius:14px; padding:14px 16px; display:flex; flex-direction:column; gap:8px;">
+                    <sc-for list="{{ tenderSummary }}" as="s" hint-placeholder-count="3">
+                      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+                        <span style="font-size:16px; color:var(--c-muted);">{{ s.label }}</span>
+                        <span style="{{ s.style }}">{{ s.value }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="background:var(--c-success); border-radius:14px; padding:14px 18px; color:#fff;">
+                    <div style="font-size:15px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; opacity:.9;">{{ S.change }}</div>
+                    <div style="font-size:46px; font-weight:800; line-height:1.1; font-variant-numeric:tabular-nums;">{{ changeAmount }}</div>
+                  </div>
+                  <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:6px;">
+                    <sc-for list="{{ tenderKeys }}" as="k" hint-placeholder-count="16">
+                      <button onClick="{{ k.press }}" style="{{ k.style }}">{{ k.label }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isNumEntry }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; gap:22px; align-items:flex-start;">
+                <div style="flex:1 1 auto;">
+                  <div style="font-size:16px; color:var(--c-muted); margin-bottom:6px;">{{ numContext }}</div>
+                  <div style="font-size:15px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--c-muted); margin-bottom:8px;">{{ numLabel }}</div>
+                  <div style="border:2px solid var(--c-accent); border-radius:12px; background:var(--c-panel); padding:14px 18px; font-size:44px; font-weight:800; color:var(--c-text); text-align:right; font-variant-numeric:tabular-nums; box-shadow:0 0 0 4px rgba(31,95,214,.10);">{{ numValue }}</div>
+                  <sc-if value="{{ numWarn }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex; gap:10px; align-items:flex-start; background:var(--c-warn-soft); border:1px solid #f0dcb4; border-radius:12px; padding:12px 14px; margin-top:12px;">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-warn)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto; margin-top:1px;"><path d="M12 8v5"></path><path d="M12 16.5h.01"></path><path d="M10.3 3.6 2.5 17.4A2 2 0 0 0 4.2 20.4h15.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"></path></svg>
+                      <span style="font-size:15px; font-weight:600; color:#7a4f06; line-height:1.4;">{{ numWarnText }}</span>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ isDiscount }}" hint-placeholder-val="{{ false }}">
+                    <div style="display:flex; gap:8px; margin-top:14px;">
+                      <sc-for list="{{ discountModes }}" as="m" hint-placeholder-count="3">
+                        <button onClick="{{ m.go }}" style="{{ m.style }}">{{ m.label }}</button>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="flex:0 0 260px; display:grid; grid-template-columns:repeat(4,1fr); gap:7px;">
+                  <sc-for list="{{ tenderKeys }}" as="k" hint-placeholder-count="16">
+                    <button onClick="{{ k.press }}" style="{{ k.style }}">{{ k.label }}</button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isCustomer }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; gap:22px; align-items:flex-start;">
+                <div style="flex:1 1 auto; min-width:0;">
+                  <div style="font-size:15px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--c-muted); margin-bottom:8px;">{{ S.customerPhone }}</div>
+                  <div style="border:2px solid var(--c-accent); border-radius:12px; background:var(--c-panel); padding:12px 16px; font-size:32px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums; margin-bottom:16px;">01712-345678</div>
+                  <div style="font-size:15px; color:var(--c-muted); margin-bottom:8px;">{{ S.multipleMatches }}</div>
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <sc-for list="{{ candidates }}" as="c" hint-placeholder-count="2">
+                      <button onClick="{{ c.pick }}" style="{{ c.style }}">
+                        <span style="display:flex; flex-direction:column; gap:3px; text-align:left;">
+                          <span style="font-size:19px; font-weight:700; color:var(--c-text);">{{ c.name }}</span>
+                          <span style="font-size:14px; color:var(--c-muted);">{{ c.last }}</span>
+                        </span>
+                        <span style="margin-left:auto; text-align:right; display:flex; flex-direction:column; gap:3px;">
+                          <span style="font-size:15px; font-weight:700; color:{{ c.owesColor }}; font-variant-numeric:tabular-nums;">{{ c.owes }}</span>
+                          <span style="font-size:13px; color:var(--c-muted); font-variant-numeric:tabular-nums;">{{ c.available }}</span>
+                        </span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="flex:0 0 280px; background:var(--c-panel); border:1px solid var(--c-border); border-radius:14px; padding:16px;">
+                  <div style="font-size:13px; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:var(--c-muted); margin-bottom:10px;">{{ S.creditStanding }}</div>
+                  <div style="display:flex; flex-direction:column; gap:10px;">
+                    <sc-for list="{{ creditRows }}" as="r" hint-placeholder-count="4">
+                      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+                        <span style="font-size:15px; color:var(--c-muted);">{{ r.label }}</span>
+                        <span style="{{ r.style }}">{{ r.value }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:var(--c-danger-soft); border:1px solid #f6c9c9; border-radius:10px; padding:10px 12px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--c-danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:0 0 auto; margin-top:2px;"><circle cx="12" cy="12" r="9"></circle><path d="M12 7.5v5"></path><path d="M12 16.2h.01"></path></svg>
+                    <span style="font-size:14px; font-weight:600; color:#8f1f1f; line-height:1.4;">{{ S.oldestDue }}</span>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isReturn }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="display:flex; gap:12px; align-items:flex-end; margin-bottom:18px;">
+                  <div style="flex:0 0 320px;">
+                    <div style="font-size:15px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--c-muted); margin-bottom:8px;">{{ S.receiptNumber }}</div>
+                    <div style="border:2px solid var(--c-accent); border-radius:12px; background:var(--c-panel); padding:12px 16px; font-size:28px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">R1-000039</div>
+                  </div>
+                  <button style="height:58px; padding:0 22px; border-radius:12px; border:none; background:var(--c-accent); color:#fff; font-size:17px; font-weight:700; cursor:pointer;">{{ S.find }}</button>
+                  <span style="font-size:15px; color:var(--c-muted); padding-bottom:16px;">24 Aug 2026 · Rahima Begum</span>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+                  <sc-for list="{{ returnLines }}" as="r" hint-placeholder-count="3">
+                    <div style="display:flex; align-items:center; gap:14px; background:var(--c-panel); border:1px solid var(--c-border); border-radius:12px; padding:12px 14px;">
+                      <span style="flex:1 1 auto; font-size:18px; font-weight:600; color:var(--c-text);">{{ r.name }}</span>
+                      <span style="font-size:14px; color:var(--c-muted); font-variant-numeric:tabular-nums;">{{ r.remaining }}</span>
+                      <span style="display:flex; gap:6px; align-items:center;">
+                        <button style="width:48px; height:48px; border-radius:10px; border:1px solid var(--c-border); background:var(--c-surface); font-size:20px; color:var(--c-text); cursor:pointer;">−</button>
+                        <span style="width:56px; text-align:center; font-size:24px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">{{ r.qty }}</span>
+                        <button style="width:48px; height:48px; border-radius:10px; border:1px solid var(--c-border); background:var(--c-surface); font-size:20px; color:var(--c-text); cursor:pointer;">+</button>
+                      </span>
+                      <span style="width:110px; text-align:right; font-size:20px; font-weight:700; color:{{ r.color }}; font-variant-numeric:tabular-nums;">{{ r.refund }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex; align-items:center; gap:16px; background:var(--c-danger-soft); border:1px solid #f6c9c9; border-radius:14px; padding:16px 20px;">
+                  <span style="font-size:17px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#8f1f1f;">{{ S.refundTotal }}</span>
+                  <span style="font-size:40px; font-weight:800; color:var(--c-danger); font-variant-numeric:tabular-nums;">৳ 470.00</span>
+                  <span style="margin-left:auto; display:flex; gap:8px;">
+                    <sc-for list="{{ refundMethods }}" as="m" hint-placeholder-count="3">
+                      <button onClick="{{ m.pick }}" style="{{ m.style }}">{{ m.label }}</button>
+                    </sc-for>
+                  </span>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isReport }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex; gap:22px; align-items:flex-start;">
+                <div style="flex:1 1 auto; min-width:0;">
+                  <div style="font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--c-muted); margin-bottom:10px;">{{ S.sellByMethod }}</div>
+                  <div style="display:flex; flex-direction:column; gap:2px; margin-bottom:20px;">
+                    <sc-for list="{{ reportRows }}" as="r" hint-placeholder-count="6">
+                      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 12px; border-radius:10px; background:{{ r.bg }};">
+                        <span style="font-size:16px; color:var(--c-text);">{{ r.label }}</span>
+                        <span style="font-size:18px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;">{{ r.value }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                  <div style="font-size:15px; color:var(--c-muted); line-height:1.5; background:var(--c-panel); border:1px solid var(--c-border); border-radius:12px; padding:14px 16px;">{{ formulaText }}</div>
+                </div>
+                <div style="flex:0 0 320px; display:flex; flex-direction:column; gap:12px;">
+                  <div style="background:var(--c-accent-soft); border:1px solid #cfe0ff; border-radius:14px; padding:16px 18px;">
+                    <div style="font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#20458c;">{{ S.expectedCash }}</div>
+                    <div style="font-size:42px; font-weight:800; color:#173a76; font-variant-numeric:tabular-nums; line-height:1.15;">৳ 24,860.00</div>
+                  </div>
+                  <sc-if value="{{ isClose }}" hint-placeholder-val="{{ false }}">
+                    <div>
+                      <div style="font-size:14px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--c-muted); margin-bottom:8px;">{{ S.countedCash }}</div>
+                      <div style="border:2px solid var(--c-accent); border-radius:12px; background:var(--c-panel); padding:12px 16px; font-size:34px; font-weight:800; color:var(--c-text); text-align:right; font-variant-numeric:tabular-nums;">24,810.00</div>
+                      <div style="margin-top:10px; display:flex; align-items:center; gap:10px; background:var(--c-danger-soft); border:1px solid #f6c9c9; border-radius:12px; padding:12px 14px;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v5"></path><path d="M12 16.5h.01"></path><path d="M10.3 3.6 2.5 17.4A2 2 0 0 0 4.2 20.4h15.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"></path></svg>
+                        <span style="font-size:17px; font-weight:700; color:#8f1f1f;">{{ S.shortBy }}</span>
+                      </div>
+                    </div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="flex:0 0 auto; display:flex; gap:10px; padding:14px 22px; border-top:1px solid var(--c-line); background:var(--c-panel);">
+            <button onClick="{{ closeModal }}" style="height:64px; padding:0 26px; border-radius:12px; border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-text); font-size:18px; font-weight:600; cursor:pointer;">{{ S.cancel }}</button>
+            <button onClick="{{ closeModal }}" style="{{ modalConfirmStyle }}">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5 10 17.5 19.5 7"></path></svg>
+              {{ modalConfirmLabel }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1420,&quot;height&quot;:900}}">
+const T = {
+  en: {
+    register:'Register', shift:'Shift', outboxLocked:'Offline too long — reconnect to keep selling',
+    online:'Online', offline:'Offline',
+    xreport:'X-report', closeRegister:'Close register', expense:'Expense', lookup:'Return / lookup',
+    searchPlaceholder:'Scan or type SKU / barcode / name',
+    products:'Products', results:'Results', close:'Close', all:'All',
+    ticket:'Ticket', prevLine:'Prev', nextLine:'Next',
+    owes:'Owes', limit:'Limit', available:'Available', oldestDue:'Oldest due 12 days — collect before extending more credit.',
+    lowStock:'Low stock', outOfStock:'Out of stock',
+    items:'Items', subtotal:'Subtotal', saved:'Saved', total:'Total', pay:'Pay',
+    discount:'Discount', orderTax:'Order tax', shipping:'Shipping', roundOff:'Round off',
+    usual:'Usual:', draft:'Draft', quotation:'Quotation', suspend:'Suspend', parked:'Parked',
+    qty:'Qty', newItem:'New item', customer:'Customer', hold:'Hold', resume:'Resume',
+    ret:'Return', noSale:'No-sale', void:'Void',
+    method:'Payment method', cash:'Cash', card:'Card', bkash:'bKash', nagad:'Nagad', rocket:'Rocket', bank:'Bank', credit:'Credit (on account)',
+    due:'Due', taken:'Taken', remaining:'Remaining', change:'Change',
+    takePayment:'Take payment', tenderTitle:'Take payment', cancel:'Cancel', apply:'Apply',
+    customerPhone:'Customer phone', multipleMatches:'More than one match — pick the right one.',
+    creditStanding:'Credit standing', find:'Find',
+    receiptNumber:'Original receipt number', refundTotal:'Refund total', refundPrint:'Refund & print',
+    sellByMethod:'Sell by method', expectedCash:'Expected cash', countedCash:'Counted cash (৳)',
+    shortBy:'Short by ৳50.00', confirmClose:'Confirm & print',
+    bootTitle:'No shift is open on this register', bootSub:'Count the drawer, enter the opening float, and start selling.',
+    openingFloat:'Opening float (৳)', openShift:'Open shift',
+    attachCustomer:'Attach customer', changeQty:'Change quantity', discountTitle:'Discount',
+    xreportTitle:'X-report', closeTitle:'Close register', returnTitle:'Return / exchange',
+    qtyLabel:'Quantity', amountOff:'Amount off (৳)', percentOff:'Percent off (%)', override:'Override price',
+    lineCtx:'Line 3 — Radhuni Curry Powder 200g',
+    discountWarn:"That's 22% off — above the 15% ceiling.",
+    creditWarnText:"Exceeds this customer's available credit (৳3,760.00 left). Offline — a credit tender's limit is checked once this sale syncs, not now.",
+    accountAfter:'On account after this sale: ৳1,940.00 of ৳5,000.00 limit.',
+    applyDiscount:'Apply discount'
+  },
+  bn: {
+    register:'রেজিস্টার', shift:'শিফট', outboxLocked:'অনেকক্ষণ অফলাইন — বিক্রি চালাতে সংযোগ দিন',
+    online:'অনলাইন', offline:'অফলাইন',
+    xreport:'এক্স-রিপোর্ট', closeRegister:'রেজিস্টার বন্ধ', expense:'খরচ', lookup:'ফেরত / খোঁজ',
+    searchPlaceholder:'স্ক্যান করুন বা SKU / বারকোড / নাম লিখুন',
+    products:'পণ্যসমূহ', results:'ফলাফল', close:'বন্ধ', all:'সব',
+    ticket:'বিল', prevLine:'আগের', nextLine:'পরের',
+    owes:'বাকি', limit:'সীমা', available:'উপলব্ধ', oldestDue:'সবচেয়ে পুরনো বাকি ১২ দিন — আরও বাকি দেওয়ার আগে আদায় করুন।',
+    lowStock:'স্টক কম', outOfStock:'স্টক নেই',
+    items:'পণ্য', subtotal:'উপমোট', saved:'সাশ্রয়', total:'মোট', pay:'পরিশোধ',
+    discount:'ছাড়', orderTax:'অর্ডার কর', shipping:'ডেলিভারি', roundOff:'রাউন্ড অফ',
+    usual:'নিয়মিত:', draft:'খসড়া', quotation:'কোটেশন', suspend:'স্থগিত', parked:'পার্ক করা',
+    qty:'পরিমাণ', newItem:'নতুন পণ্য', customer:'ক্রেতা', hold:'হোল্ড', resume:'পুনরায়',
+    ret:'ফেরত', noSale:'নো-সেল', void:'বাতিল',
+    method:'পরিশোধের মাধ্যম', cash:'নগদ', card:'কার্ড', bkash:'বিকাশ', nagad:'নগদ (Nagad)', rocket:'রকেট', bank:'ব্যাংক', credit:'বাকি (হিসাবে)',
+    due:'বাকি', taken:'গৃহীত', remaining:'অবশিষ্ট', change:'ফেরত টাকা',
+    takePayment:'পরিশোধ নিন', tenderTitle:'পরিশোধ নিন', cancel:'বাতিল', apply:'প্রয়োগ',
+    customerPhone:'ক্রেতার ফোন', multipleMatches:'একাধিক মিল — সঠিকটি বেছে নিন।',
+    creditStanding:'বাকির অবস্থা', find:'খুঁজুন',
+    receiptNumber:'মূল রসিদ নম্বর', refundTotal:'ফেরতের মোট', refundPrint:'ফেরত ও প্রিন্ট',
+    sellByMethod:'মাধ্যম অনুযায়ী বিক্রি', expectedCash:'প্রত্যাশিত নগদ', countedCash:'গণনা করা নগদ (৳)',
+    shortBy:'৳৫০.০০ কম', confirmClose:'নিশ্চিত ও প্রিন্ট',
+    bootTitle:'এই রেজিস্টারে কোনো শিফট খোলা নেই', bootSub:'ড্রয়ার গুনে শুরুর নগদ লিখুন, তারপর বিক্রি শুরু করুন।',
+    openingFloat:'শুরুর নগদ (৳)', openShift:'শিফট শুরু',
+    attachCustomer:'ক্রেতা যুক্ত করুন', changeQty:'পরিমাণ পরিবর্তন', discountTitle:'ছাড়',
+    xreportTitle:'এক্স-রিপোর্ট', closeTitle:'রেজিস্টার বন্ধ', returnTitle:'ফেরত / বিনিময়',
+    qtyLabel:'পরিমাণ', amountOff:'টাকায় ছাড় (৳)', percentOff:'শতাংশে ছাড় (%)', override:'দাম পরিবর্তন',
+    lineCtx:'লাইন ৩ — রাঁধুনি কারি পাউডার ২০০গ্রা',
+    discountWarn:'এটি ২২% ছাড় — ১৫% সীমার বেশি।',
+    creditWarnText:'ক্রেতার উপলব্ধ বাকির সীমা ছাড়িয়ে যাচ্ছে (৳৩,৭৬০.০০ বাকি আছে)। অফলাইন — সীমা যাচাই হবে সিঙ্ক হওয়ার পরে, এখন নয়।',
+    accountAfter:'এই বিক্রির পরে হিসাবে: ৳১,৯৪০.০০ / ৳৫,০০০.০০ সীমা।',
+    applyDiscount:'ছাড় প্রয়োগ'
+  }
+};
+
+const ICONS = {
+  briefcase:'M4 8.5h16v10.5H4zM9 8.5V6.2a1.7 1.7 0 0 1 1.7-1.7h2.6A1.7 1.7 0 0 1 15 6.2v2.3',
+  lock:'M5 11h14v9H5zM8.5 11V7.6a3.5 3.5 0 0 1 7 0V11',
+  minusCircle:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M8 12h8',
+  undo:'M9 8H5V4M5.2 8.2a8 8 0 1 1-1.4 6',
+  hash:'M5 9h14M5 15h14M10 4 8.5 20M15.5 4 14 20',
+  tag:'M4 4h7l9 9-7 7-9-9zM8 8h.01',
+  plusBox:'M4.5 4.5h15v15h-15zM12 8.5v7M8.5 12h7',
+  user:'M12 4.8a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4M4.5 19.5a7.5 7.5 0 0 1 15 0',
+  pause:'M9 5v14M15 5v14',
+  play:'M8 5.5 18 12 8 18.5z',
+  drawer:'M3.5 12 6 5.5h12L20.5 12v6.5h-17zM3.5 12h17M10 15.5h4',
+  trash:'M5 7h14M9.5 7V5.5h5V7M7 7l.8 12.2h8.4L17 7',
+  grid:'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  doc:'M6 3.5h8l4 4v13H6zM14 3.5V8h4',
+  quote:'M7 8h10M7 12h10M7 16h6',
+  clock:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M12 7.5V12l3 2',
+  folder:'M3.5 6.5h6l2 2.5h9v9h-17z',
+  cash:'M2.5 6h19v12h-19zM12 12h.01M6 12h.01M18 12h.01',
+  card:'M2.5 6h19v12h-19zM2.5 10h19',
+  phone:'M8 3.5h8v17H8zM10.5 18h3',
+  bank:'M3.5 9.5 12 4l8.5 5.5M5.5 10v8M18.5 10v8M9.5 10v8M14.5 10v8M3.5 20.5h17',
+  wallet:'M4 6.5h13a2 2 0 0 1 2 2V18H4zM15.5 12.5h3',
+  check:'M5 12.5 10 17.5 19.5 7'
+};
+
+const PRODUCTS = [
+  ['Chinigura Rice 5kg','৳ 720.00','18 bag',false],
+  ['Fresh Milk 1L','৳ 95.00','42',false],
+  ['Radhuni Curry Powder 200g','৳ 78.00','6',true],
+  ['Teer Soyabean Oil 5L','৳ 890.00','11',false],
+  ['Eggs — dozen','৳ 145.00','9 dz',false],
+  ['Coca-Cola 2L','৳ 130.00','0',true],
+  ['Ispahani Mirzapore Tea 400g','৳ 265.00','24',false],
+  ['Pran Lentils 1kg','৳ 165.00','31',false],
+  ['Sunsilk Shampoo 340ml','৳ 410.00','7',true],
+  ['Detergent Powder 1kg','৳ 210.00','19',false],
+  ['Rui Fish (per kg)','৳ 380.00','5 kg',false],
+  ['Sugar 1kg','৳ 138.00','48',false]
+];
+
+const LINES = [
+  { name:'Chinigura Rice 5kg', qty:'1 × ৳ 720.00', unit:'bag', stock:'18 bag left', total:'৳ 720.00' },
+  { name:'Fresh Milk 1L', qty:'2 × ৳ 95.00', total:'৳ 190.00' },
+  { name:'Radhuni Curry Powder 200g', qty:'3 × ৳ 78.00', discount:'−৳ 24.00', total:'৳ 210.00' },
+  { name:'Coca-Cola 2L', qty:'1 × ৳ 130.00', oos:true, total:'৳ 130.00' },
+  { name:'Eggs — dozen', qty:'1 × ৳ 145.00', unit:'dz', stock:'9 dz left', total:'৳ 145.00' },
+  { name:'Ispahani Mirzapore Tea 400g', qty:'1 × ৳ 265.00', total:'৳ 265.00' }
+];
+
+class Component extends DCLogic {
+  state = {
+    lang: 'en',
+    vp: 1366,
+    grid: 'drawer',
+    screen: 'main',
+    showProducts: false,
+    sel: 2,
+    tab: 'products',
+    cat: 0,
+    method: 'cash',
+    discountMode: 'amount',
+    float: '5,000.00'
+  };
+
+  set(k, v) { this.setState({ [k]: v }); }
+
+  pill(active, extra) {
+    return 'height:30px; padding:0 12px; border-radius:7px; border:none; cursor:pointer; font-size:13px; font-weight:600; ' +
+      (active ? 'background:#1f5fd6; color:#fff;' : 'background:transparent; color:#5f6f88;') + (extra || '');
+  }
+
+  renderVals() {
+    const s = this.state;
+    const S = T[s.lang];
+    const modalTitles = {
+      tender: S.tenderTitle, qty: S.changeQty, discount: S.discountTitle,
+      customer: S.attachCustomer, xreport: S.xreportTitle, close: S.closeTitle, return: S.returnTitle
+    };
+    const screen = s.screen;
+    const isModal = !!modalTitles[screen];
+
+    const screenTabs = [
+      ['main', 'Till'], ['tender', 'Tender'], ['qty', 'Qty'], ['discount', 'Discount'],
+      ['customer', 'Customer'], ['boot', 'Open shift'], ['return', 'Return'],
+      ['xreport', 'X-report'], ['close', 'Close register']
+    ].map(([k, label]) => ({
+      label, style: this.pill(screen === k), go: () => this.set('screen', k)
+    }));
+
+    const optionTabs = [
+      { label: 'EN', on: s.lang === 'en', go: () => this.set('lang', 'en') },
+      { label: 'বাংলা', on: s.lang === 'bn', go: () => this.set('lang', 'bn') },
+      { label: '1024', on: s.vp === 1024, go: () => this.set('vp', 1024) },
+      { label: '1366', on: s.vp === 1366, go: () => this.set('vp', 1366) },
+      { label: 'Grid: drawer', on: s.grid === 'drawer', go: () => this.setState({ grid: 'drawer', showProducts: false }) },
+      { label: 'Grid: tab', on: s.grid === 'tab', go: () => this.setState({ grid: 'tab', showProducts: false }) }
+    ].map(t => ({ label: t.label, style: this.pill(t.on), go: t.go }));
+
+    const tileBtn = 'display:flex; flex-direction:column; gap:5px; align-items:flex-start; min-height:86px; padding:10px; border:1px solid var(--c-border); background:var(--c-surface); border-radius:11px; cursor:pointer; text-align:left;';
+    const tiles = PRODUCTS.map(([name, price, stock, low]) => ({
+      name, price, stock, low,
+      style: tileBtn + (low ? ' border-color:#f0dcb4;' : ''),
+      add: () => {}
+    }));
+
+    const chips = [S.all, 'Grocery', 'Dairy', 'Beverages', 'Home care'].map((label, i) => ({
+      label,
+      style: 'height:32px; padding:0 12px; border-radius:999px; font-size:13px; font-weight:600; cursor:pointer; border:1px solid ' +
+        (s.cat === i ? 'var(--c-accent); background:var(--c-accent); color:#fff;' : 'var(--c-border); background:var(--c-surface); color:var(--c-text);'),
+      go: () => this.set('cat', i)
+    }));
+
+    const qtyBtn = 'flex:0 0 auto; width:56px; height:56px; border-radius:11px; border:1px solid var(--c-border); background:var(--c-surface); font-size:24px; font-weight:600; color:var(--c-text); cursor:pointer; display:flex; align-items:center; justify-content:center;';
+    const lines = LINES.map((l, i) => ({
+      n: String(i + 1),
+      name: l.name,
+      qtyLine: l.qty,
+      unit: l.unit,
+      hasUnit: !!l.unit,
+      stockHint: l.stock,
+      hasStockHint: !!l.stock,
+      discount: l.discount,
+      hasDiscount: !!l.discount,
+      oos: !!l.oos,
+      total: l.total,
+      select: () => this.set('sel', i),
+      style: 'display:flex; align-items:center; gap:12px; padding:12px 14px; border-bottom:1px solid var(--c-line); cursor:pointer; border-left:5px solid ' +
+        (s.sel === i ? 'var(--c-accent); background:var(--c-accent-soft);' : 'transparent; background:transparent;'),
+      decStyle: qtyBtn, incStyle: qtyBtn,
+      remStyle: qtyBtn + ' color:var(--c-danger); border-color:#f0cccc; background:var(--c-danger-soft);'
+    }));
+
+    const money = 'font-size:16px; font-weight:600; color:var(--c-text); font-variant-numeric:tabular-nums;';
+    const footerRows = [
+      { label: S.items, value: '9', valStyle: money, editable: false },
+      { label: S.discount, value: '−৳ 24.00', valStyle: money + ' color:var(--c-success);', editable: true, edit: () => this.set('screen', 'discount') },
+      { label: S.orderTax, value: '+৳ 82.50', valStyle: money, editable: true, edit: () => {} },
+      { label: S.shipping, value: '—', valStyle: money + ' color:var(--c-muted);', editable: true, edit: () => {} }
+    ];
+
+    const actBase = 'position:relative; height:56px; border-radius:12px; border:1px solid; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px; cursor:pointer; white-space:nowrap; padding:0 4px;';
+    const tone = (fg, bg, bd) => actBase + ' color:' + fg + '; background:' + bg + '; border-color:' + bd + ';';
+    const neutral = tone('var(--c-text)', 'var(--c-surface)', 'var(--c-border)');
+    const blue = tone('#20458c', 'var(--c-accent-soft)', '#cfe0ff');
+    const amber = tone('#7a4f06', 'var(--c-warn-soft)', '#f0dcb4');
+    const red = tone('#8f1f1f', 'var(--c-danger-soft)', '#f6c9c9');
+    const green = tone('#0a6b3c', 'var(--c-success-soft)', '#c3e7d3');
+
+    const actions = [
+      { key: 'F3', label: S.qty, d: ICONS.hash, style: neutral },
+      { key: 'F4', label: S.discount, d: ICONS.tag, style: green },
+      { key: 'F5', label: S.newItem, d: ICONS.plusBox, style: neutral + ' opacity:.4;' },
+      { key: 'F6', label: S.customer, d: ICONS.user, style: blue, go: () => this.set('screen', 'customer') },
+      { key: 'F7', label: S.hold, d: ICONS.pause, style: amber },
+      { key: 'F8', label: S.resume, d: ICONS.play, style: amber },
+      { key: 'F9', label: S.ret, d: ICONS.undo, style: red, go: () => this.set('screen', 'return') },
+      { key: 'F10', label: S.noSale, d: ICONS.drawer, style: neutral },
+      { key: 'Esc', label: S.void, d: ICONS.trash, style: red },
+      { key: '', label: S.products, d: ICONS.grid, style: blue, go: () => this.setState({ grid: 'drawer', showProducts: true }) }
+    ].map(a => ({ ...a, go: a.go || (() => {}) }));
+
+    const keyFace = 'border-radius:11px; border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-text); font-size:24px; font-weight:700; cursor:pointer; font-variant-numeric:tabular-nums; display:flex; align-items:center; justify-content:center;';
+    const keyAlt = 'border-radius:11px; border:1px solid var(--c-border); background:var(--c-panel); color:var(--c-muted); font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;';
+    const keyEnter = 'grid-row:span 2; border-radius:11px; border:none; background:var(--c-accent); color:#fff; font-size:17px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;';
+    const pad = (extra) => [
+      ['7', keyFace], ['8', keyFace], ['9', keyFace], ['⌫', keyAlt],
+      ['4', keyFace], ['5', keyFace], ['6', keyFace], ['C', keyAlt],
+      ['1', keyFace], ['2', keyFace], ['3', keyFace], ['Enter', keyEnter + (extra || '')],
+      ['.', keyFace], ['0', keyFace], ['00', keyFace]
+    ].map(([label, style]) => ({ label, style, press: () => {} }));
+
+    const methodDefs = [
+      ['cash', S.cash, ICONS.cash], ['card', S.card, ICONS.card], ['bkash', S.bkash, ICONS.phone],
+      ['nagad', S.nagad, ICONS.phone], ['rocket', S.rocket, ICONS.phone], ['bank', S.bank, ICONS.bank],
+      ['credit', S.credit, ICONS.wallet]
+    ];
+    const methods = methodDefs.map(([k, label, d]) => ({
+      label, d,
+      style: 'height:76px; border-radius:12px; border:2px solid ' +
+        (s.method === k ? 'var(--c-accent); background:var(--c-accent-soft); color:#20458c;' : 'var(--c-border); background:var(--c-surface); color:var(--c-text);') +
+        ' display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; cursor:pointer;',
+      pick: () => this.set('method', k)
+    }));
+
+    const chip = (bg, fg) => 'flex:0 0 120px; font-size:15px; font-weight:700; color:' + fg + '; background:' + bg + '; border-radius:8px; padding:8px 10px; text-align:center;';
+    const tenderRows = [
+      { method: S.cash, amount: '৳ 1,000.00', chipStyle: chip('var(--c-success-soft)', '#0a6b3c'), remove: () => {} },
+      { method: S.bkash, amount: '৳ 500.00', chipStyle: chip('#fdeaf3', '#9c1c5a'), remove: () => {} }
+    ];
+
+    const bigNum = 'font-size:24px; font-weight:800; color:var(--c-text); font-variant-numeric:tabular-nums; white-space:nowrap;';
+    const tenderSummary = [
+      { label: S.due, value: '৳ 1,438.50', style: bigNum },
+      { label: S.taken, value: '৳ 1,500.00', style: bigNum },
+      { label: S.remaining, value: '৳ 0.00', style: bigNum + ' color:var(--c-muted);' }
+    ];
+
+    const isDiscount = screen === 'discount';
+    const discountModes = [
+      { label: S.amountOff, k: 'amount' }, { label: S.percentOff, k: 'percent' }, { label: S.override, k: 'override' }
+    ].map(m => ({
+      label: m.label,
+      style: 'height:52px; padding:0 18px; border-radius:11px; font-size:15px; font-weight:700; cursor:pointer; border:2px solid ' +
+        (s.discountMode === m.k ? 'var(--c-accent); background:var(--c-accent-soft); color:#20458c;' : 'var(--c-border); background:var(--c-surface); color:var(--c-text);'),
+      go: () => this.set('discountMode', m.k)
+    }));
+
+    const candBtn = 'display:flex; align-items:center; gap:14px; width:100%; padding:14px 16px; border-radius:12px; border:1px solid var(--c-border); background:var(--c-surface); cursor:pointer;';
+    const candidates = [
+      { name: 'Rahima Begum', last: 'Last order 24 Aug 2026', owes: '৳ 1,240.00', owesColor: 'var(--c-danger)', available: 'Available ৳ 3,760.00', style: candBtn + ' border-color:var(--c-accent); background:var(--c-accent-soft);', pick: () => {} },
+      { name: 'Rahima Akter', last: 'Last order 2 Jul 2026', owes: '৳ 0.00', owesColor: 'var(--c-success)', available: 'No credit limit', style: candBtn, pick: () => {} }
+    ];
+    const creditRows = [
+      { label: S.owes, value: '৳ 1,240.00', style: 'font-size:20px; font-weight:800; color:var(--c-danger); font-variant-numeric:tabular-nums;' },
+      { label: S.limit, value: '৳ 5,000.00', style: 'font-size:20px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums;' },
+      { label: S.available, value: '৳ 3,760.00', style: 'font-size:20px; font-weight:800; color:var(--c-success); font-variant-numeric:tabular-nums;' }
+    ];
+
+    const returnLines = [
+      { name: 'Chinigura Rice 5kg', remaining: '1 of 1 left', qty: '1', refund: '−৳ 720.00', color: 'var(--c-danger)' },
+      { name: 'Fresh Milk 1L', remaining: '2 of 2 left', qty: '0', refund: '৳ 0.00', color: 'var(--c-muted)' },
+      { name: 'Eggs — dozen', remaining: '1 of 1 left', qty: '1', refund: '−৳ 145.00', color: 'var(--c-danger)' }
+    ];
+    const refundMethods = [S.cash, S.bkash, S.credit].map((label, i) => ({
+      label,
+      style: 'height:52px; padding:0 18px; border-radius:11px; font-size:16px; font-weight:700; cursor:pointer; border:2px solid ' +
+        (i === 0 ? 'var(--c-danger); background:#fff; color:var(--c-danger);' : '#f0cccc; background:transparent; color:#8f1f1f;'),
+      pick: () => {}
+    }));
+
+    const reportRows = [
+      ['Cash', '৳ 19,860.00'], ['bKash', '৳ 6,420.00'], ['Card', '৳ 3,100.00'],
+      ['Refunds', '−৳ 470.00'], ['Expenses', '−৳ 1,200.00'], ['Total sales', '৳ 29,380.00']
+    ].map(([label, value], i) => ({ label, value, bg: i % 2 ? 'var(--c-panel)' : 'transparent' }));
+
+    const isClose = screen === 'close';
+    const confirmLabels = {
+      tender: S.takePayment, qty: S.apply, discount: S.applyDiscount,
+      customer: S.attachCustomer, return: S.refundPrint, close: S.confirmClose, xreport: S.close
+    };
+    const confirmTone = screen === 'return' ? 'var(--c-danger)' : (screen === 'tender' ? 'var(--c-success)' : 'var(--c-accent)');
+
+    const modalWidths = { tender: '1000px', qty: '760px', discount: '760px', customer: '900px', return: '900px', xreport: '900px', close: '900px' };
+
+    const narrow = s.vp <= 1024;
+    return {
+      S, screenTabs, optionTabs,
+      tabPanelStyle: 'flex:0 0 auto; height:' + (narrow ? 160 : 214) + 'px; display:flex; flex-direction:column; background:var(--c-surface); border:1px solid var(--c-border); border-radius:12px; overflow:hidden;',
+      rightColStyle: 'flex:0 0 ' + (narrow ? 268 : 300) + 'px; display:flex; flex-direction:column; gap:10px; min-height:0;',
+      totalValueStyle: 'font-size:' + (narrow ? 44 : 56) + 'px; font-weight:800; line-height:1; color:var(--c-text); font-variant-numeric:tabular-nums;',
+      payBtnStyle: 'flex:0 0 ' + (narrow ? 240 : 300) + 'px',
+      metaTimeStyle: 'font-size:14px; font-weight:600; color:var(--c-muted); font-variant-numeric:tabular-nums; white-space:nowrap; display:' + (narrow ? 'none' : 'inline'),
+      lineTotalStyle: 'flex:0 0 ' + (narrow ? 104 : 118) + 'px; text-align:right; font-size:21px; font-weight:700; color:var(--c-text); font-variant-numeric:tabular-nums; white-space:nowrap;',
+      hintText: s.grid === 'drawer' ? 'Products = full-height drawer over the ticket' : 'Products = tabbed panel above the ticket',
+      frameStyle: '--c-bg:#eef1f7; --c-surface:#ffffff; --c-panel:#f7f9fd; --c-border:#d7dfec; --c-line:#e8edf6;' +
+        '--c-text:#152033; --c-muted:#5f6f88; --c-accent:#1f5fd6; --c-accent-soft:#e8f0ff;' +
+        '--c-success:#0b8a4b; --c-success-soft:#e3f6ec; --c-danger:#d02a2a; --c-danger-soft:#fdeaea;' +
+        '--c-warn:#b3740a; --c-warn-soft:#fdf1dd;' +
+        'position:relative; width:' + s.vp + 'px; height:768px; background:var(--c-bg); color:var(--c-text);' +
+        'display:flex; flex-direction:column; overflow:hidden; border-radius:16px; border:1px solid #cdd6e6;' +
+        'box-shadow:0 22px 60px rgba(21,32,51,.18); font-variant-numeric:tabular-nums;',
+      isBoot: screen === 'boot',
+      offline: false,
+      netLabel: S.online,
+      netStyle: 'display:flex; align-items:center; gap:6px; font-size:13px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; color:#0a6b3c; background:var(--c-success-soft); border:1px solid #c3e7d3; padding:5px 11px; border-radius:999px;',
+      toolbarBtns: [
+        { label: S.xreport, d: ICONS.briefcase, go: () => this.set('screen', 'xreport') },
+        { label: S.closeRegister, d: ICONS.lock, go: () => this.set('screen', 'close') },
+        { label: S.expense, d: ICONS.minusCircle, go: () => {} },
+        { label: S.lookup, d: ICONS.undo, go: () => this.set('screen', 'return') }
+      ].map(b => ({ ...b, style: 'height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--c-border); background:var(--c-panel); color:var(--c-text); font-size:14px; font-weight:600; display:flex; align-items:center; gap:7px; cursor:pointer; white-space:nowrap;' })),
+      gridIsDrawer: s.grid === 'drawer',
+      gridIsTab: s.grid === 'tab',
+      showProducts: s.showProducts && s.grid === 'drawer',
+      toggleProducts: () => this.set('showProducts', !s.showProducts),
+      productsBtnStyle: 'flex:0 0 auto; padding:0 18px; border-radius:12px; border:1px solid ' +
+        (s.showProducts ? 'var(--c-accent); background:var(--c-accent); color:#fff;' : '#cfe0ff; background:var(--c-accent-soft); color:#20458c;') +
+        ' font-size:16px; font-weight:700; display:flex; align-items:center; gap:9px; cursor:pointer;',
+      resultTabs: [
+        { label: S.results, k: 'results' }, { label: S.products, k: 'products' }
+      ].map(t => ({
+        label: t.label,
+        style: 'height:38px; padding:0 18px; border:none; border-radius:9px 9px 0 0; font-size:15px; font-weight:700; cursor:pointer; ' +
+          (s.tab === t.k ? 'background:var(--c-accent-soft); color:#20458c;' : 'background:transparent; color:var(--c-muted);'),
+        go: () => this.set('tab', t.k)
+      })),
+      chips, tiles, lines, footerRows, actions,
+      keypad: pad(),
+      tenderKeys: pad(),
+      bootKeys: [['1'], ['2'], ['3'], ['4'], ['5'], ['6'], ['7'], ['8'], ['9'], ['.'], ['0'], ['⌫']].map(([label]) => ({
+        label,
+        style: 'height:56px; border-radius:11px; border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-text); font-size:22px; font-weight:700; cursor:pointer;',
+        press: () => {}
+      })),
+      floatValue: s.float,
+      openShift: () => this.set('screen', 'main'),
+      receiptNo: 'R1-000043',
+      hasCustomer: true,
+      customerName: 'Rahima Begum',
+      customerOwes: '৳ 1,240.00',
+      clearCustomer: () => {},
+      navBtnStyle: 'height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-text); font-size:14px; font-weight:600; display:flex; align-items:center; gap:5px; cursor:pointer;',
+      prevLine: () => this.set('sel', Math.max(0, s.sel - 1)),
+      nextLine: () => this.set('sel', Math.min(LINES.length - 1, s.sel + 1)),
+      usual: ['Fresh Milk 1L', 'Eggs — dozen', 'Sugar 1kg'],
+      docBtns: [
+        { label: S.draft, d: ICONS.doc }, { label: S.quotation, d: ICONS.quote },
+        { label: S.suspend, d: ICONS.clock }, { label: S.parked, d: ICONS.folder }
+      ].map(b => ({ ...b, go: () => {}, style: 'height:42px; padding:0 14px; border-radius:10px; border:1px solid var(--c-border); background:var(--c-surface); color:var(--c-text); font-size:14px; font-weight:600; display:flex; align-items:center; gap:7px; cursor:pointer;' })),
+      itemCount: '9', subtotal: '৳ 1,380.00', saved: '৳ 24.00', total: '৳ 1,438.50',
+      openTender: () => this.set('screen', 'tender'),
+
+      showModal: isModal,
+      modalTitle: modalTitles[screen] || '',
+      modalIconD: screen === 'tender' ? ICONS.cash : screen === 'customer' ? ICONS.user : screen === 'return' ? ICONS.undo : screen === 'discount' ? ICONS.tag : screen === 'qty' ? ICONS.hash : ICONS.briefcase,
+      modalIconStyle: 'width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; color:' +
+        (screen === 'return' ? '#8f1f1f; background:var(--c-danger-soft);' : screen === 'tender' ? '#0a6b3c; background:var(--c-success-soft);' : '#20458c; background:var(--c-accent-soft);'),
+      modalBoxStyle: 'width:' + (modalWidths[screen] || '760px') + '; max-width:100%; max-height:100%; display:flex; flex-direction:column; background:var(--c-surface); border:1px solid var(--c-border); border-radius:18px; box-shadow:0 30px 70px rgba(21,32,51,.28); overflow:hidden;',
+      closeModal: () => this.set('screen', 'main'),
+      modalConfirmLabel: confirmLabels[screen] || S.apply,
+      modalConfirmStyle: 'flex:1 1 auto; height:64px; border:none; border-radius:12px; background:' + confirmTone + '; color:#fff; font-size:22px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:12px; cursor:pointer; white-space:nowrap;',
+
+      isTender: screen === 'tender',
+      methods, tenderRows, tenderSummary,
+      changeAmount: '৳ 61.50',
+      creditWarn: s.method === 'credit',
+      creditWarnText: S.creditWarnText,
+      accountAfter: S.accountAfter,
+
+      isNumEntry: screen === 'qty' || isDiscount,
+      isDiscount,
+      numContext: S.lineCtx,
+      numLabel: isDiscount ? (s.discountMode === 'percent' ? S.percentOff : s.discountMode === 'override' ? S.override : S.amountOff) : S.qtyLabel,
+      numValue: isDiscount ? '22' : '3',
+      numWarn: isDiscount && s.discountMode === 'percent',
+      numWarnText: S.discountWarn,
+      discountModes,
+
+      isCustomer: screen === 'customer',
+      candidates, creditRows,
+
+      isReturn: screen === 'return',
+      returnLines, refundMethods,
+
+      isReport: screen === 'xreport' || isClose,
+      isClose,
+      reportRows,
+      formulaText: 'Opening ৳ 5,000.00 + cash sale ৳ 19,860.00 − cash refund ৳ 470.00 − cash expense ৳ 1,200.00 = expected ৳ 24,860.00'
+    };
+  }
+}
+
+</script>
+</body>
+</html>
