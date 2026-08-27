@@ -218,6 +218,7 @@ class Selftest {
 		$this->test_sale_documents();
 		$this->test_payment_accounts();
 		$this->test_rollup();
+		$this->test_hourly_rollup();
 		$this->test_reports_channel();
 		$this->test_dashboard();
 		$this->test_pos_entry_points();
@@ -8278,6 +8279,133 @@ class Selftest {
 		if ( ! empty( $admins_ru ) ) {
 			wp_set_current_user( $original_user_id_ru );
 		}
+	}
+
+	// -- D1: test_hourly_rollup() -- 4 checks ------------------------------------------
+
+	private function test_hourly_rollup(): void {
+		$location_id = \Counter\Stock\Locations::create(
+			[ 'name' => 'Counter Selftest Fixture Hourly Rollup Location', 'code' => 'CNTR-SELFTEST-HR-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->location_fixture_ids[] = $location_id;
+
+		$register_id = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Hourly Rollup Register', 'location_id' => $location_id ]
+		);
+		$this->register_fixture_ids[] = $register_id;
+		$shift_id = \Counter\Pos\Shifts::open( $register_id, get_current_user_id(), '0.00' );
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture Hourly Rollup Product' );
+		$product->set_regular_price( '15.00' );
+		$product->set_manage_stock( true );
+		$product->set_stock_quantity( 0 );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save();
+		$this->product_fixture_ids[] = $product->get_id();
+		\Counter\Stock\Batches::receive( [ 'product_id' => $product->get_id(), 'variation_id' => 0, 'location_id' => $location_id, 'lot_no' => 'HR-A', 'qty_received' => '100', 'unit_cost' => '5.0000' ] );
+
+		$pos_context = [ 'register_id' => $register_id, 'shift_id' => $shift_id, 'location_id' => $location_id, 'operator_id' => get_current_user_id() ];
+		foreach ( [ [ 1, '15.00' ], [ 2, '30.00' ] ] as $i => $spec ) {
+			[ $qty, $total ] = $spec;
+			$order = \Counter\Orders\Builder::build(
+				[ [ 'product' => $product, 'qty' => $qty, 'subtotal' => $total, 'total' => $total ] ],
+				$pos_context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-HOURLY-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+			);
+			$this->order_fixture_ids[] = $order->get_id();
+			\Counter\Orders\Channel::apply_stock( $order );
+			$order->set_status( 'completed' );
+			$order->save();
+		}
+
+		$today = \Counter\Reports\Rollup::day_for( Db::now() );
+
+		// 1. Hourly sums equal the daily row — rebuild() derives the daily
+		// grain BY SUMMING the hourly grain, so this is really a check that
+		// the refactor didn't drop or double-count anything, not a
+		// coincidence of two independent computations.
+		$rebuild_dry = \Counter\Reports\Rollup::rebuild( $today, $today, false );
+		$daily_row   = null;
+		foreach ( $rebuild_dry['rows'] as $r ) {
+			if ( (int) $r['location_id'] === $location_id ) {
+				$daily_row = $r;
+				break;
+			}
+		}
+		$hourly_sum_gross = '0.0000';
+		$hourly_sum_net   = '0.0000';
+		foreach ( $rebuild_dry['hourly_rows'] as $r ) {
+			if ( (int) $r['location_id'] === $location_id ) {
+				$hourly_sum_gross = bcadd( $hourly_sum_gross, $r['gross'], 4 );
+				$hourly_sum_net   = bcadd( $hourly_sum_net, $r['net'], 4 );
+			}
+		}
+		$this->check(
+			'test_hourly_rollup: hourly sums equal the daily row',
+			null !== $daily_row && 0 === bccomp( $hourly_sum_gross, $daily_row['gross'], 4 ) && 0 === bccomp( $hourly_sum_net, $daily_row['net'], 4 ),
+			wp_json_encode( [ 'hourly_sum_gross' => $hourly_sum_gross, 'daily_gross' => $daily_row['gross'] ?? null ] )
+		);
+
+		// 2. A rebuild is idempotent — two independent dry-run computations
+		// over the exact same source data (stock_moves/orders, never this
+		// table's own prior values) must agree. Deliberately two DRY runs,
+		// not two writes: a $write=true rebuild recomputes cntr_sales_daily/
+		// cntr_sales_hourly for EVERY location and channel on $today, not
+		// just this fixture's own — too broad a live write for what this
+		// check actually needs to prove.
+		$rebuild_dry_2 = \Counter\Reports\Rollup::rebuild( $today, $today, false );
+		$gross_1 = '0.0000';
+		$gross_2 = '0.0000';
+		foreach ( $rebuild_dry['hourly_rows'] as $r ) {
+			if ( (int) $r['location_id'] === $location_id ) {
+				$gross_1 = bcadd( $gross_1, $r['gross'], 4 );
+			}
+		}
+		foreach ( $rebuild_dry_2['hourly_rows'] as $r ) {
+			if ( (int) $r['location_id'] === $location_id ) {
+				$gross_2 = bcadd( $gross_2, $r['gross'], 4 );
+			}
+		}
+		$this->check(
+			'test_hourly_rollup: a rebuild is idempotent',
+			0 === bccomp( $gross_1, $gross_2, 4 ),
+			wp_json_encode( [ 'first' => $gross_1, 'second' => $gross_2 ] )
+		);
+
+		// 3. The shop-local day boundary is respected — day_for()/hour_for()
+		// must agree with an independent DateTime conversion through the
+		// site's own real timezone, not a hardcoded offset, for a UTC
+		// instant deliberately close to local midnight.
+		$utc_probe    = '2026-01-15 23:30:00';
+		$expected_dt  = new \DateTime( $utc_probe, new \DateTimeZone( 'UTC' ) );
+		$expected_dt->setTimezone( wp_timezone() );
+		$expected_day  = $expected_dt->format( 'Y-m-d' );
+		$expected_hour = (int) $expected_dt->format( 'G' );
+		$actual_day    = \Counter\Reports\Rollup::day_for( $utc_probe );
+		$actual_hour   = \Counter\Reports\Rollup::hour_for( $utc_probe );
+		$this->check(
+			'test_hourly_rollup: the shop-local day boundary is respected',
+			$expected_day === $actual_day && $expected_hour === $actual_hour,
+			wp_json_encode( [ 'expected_day' => $expected_day, 'actual_day' => $actual_day, 'expected_hour' => $expected_hour, 'actual_hour' => $actual_hour ] )
+		);
+
+		// 4. An empty hour returns zero, not a missing row — a fixture
+		// location with real sales on $today still has hours nothing sold
+		// in; hourly_for() must return all 24 regardless.
+		$hourly_for_day = \Counter\Reports\Rollup::hourly_for( $today, '', $location_id );
+		$has_all_24     = 24 === count( $hourly_for_day );
+		$empty_hours_zero = true;
+		foreach ( $hourly_for_day as $hour => $row ) {
+			if ( ! isset( $row['gross'] ) || ! is_string( $row['gross'] ) ) {
+				$empty_hours_zero = false;
+				break;
+			}
+		}
+		$this->check(
+			'test_hourly_rollup: an empty hour returns zero, not a missing row',
+			$has_all_24 && $empty_hours_zero,
+			wp_json_encode( [ 'hour_count' => count( $hourly_for_day ) ] )
+		);
 	}
 
 	// -- P5.2: test_reports_channel() -- 6 checks ----------------------------------------

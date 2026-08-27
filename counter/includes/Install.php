@@ -20,7 +20,8 @@ class Install {
 
 	// Keep in lock-step with CNTR_DB_VER in counter.php. test_version() fails on
 	// drift between the two — that drift is exactly how "the stamp lied" happens.
-	const VERSION = 1;
+	// D1 — the first schema change since this plugin went live: cntr_sales_hourly.
+	const VERSION = 2;
 
 	/**
 	 * Never dropped by the normal uninstall path. stock_moves and challan_register
@@ -52,7 +53,7 @@ class Install {
 
 	/** Derived and operational tables — rebuildable from the protected ones. */
 	public static function soft_drop_tables(): array {
-		return [ 'catalog_index', 'stock', 'sales_daily' ];
+		return [ 'catalog_index', 'stock', 'sales_daily', 'sales_hourly' ];
 	}
 
 	/**
@@ -1006,6 +1007,32 @@ class Install {
   items_count decimal(14,4) NOT NULL DEFAULT 0.0000,
   updated_at datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
   PRIMARY KEY  (day,channel,location_id),
+  KEY day (day)
+) {$c};",
+
+			// D1 — a sibling table, not an extra column on sales_daily's own
+			// key: keeps every existing daily query (and every existing PK
+			// lookup) untouched, and Rollup::rebuild() already recomputes
+			// both grains from the same pass over cntr_stock_moves rather
+			// than deriving one from the other.
+			'sales_hourly' => "CREATE TABLE {$p}sales_hourly (
+  day date NOT NULL,
+  hour tinyint(2) unsigned NOT NULL DEFAULT 0,
+  channel varchar(16) NOT NULL DEFAULT '',
+  location_id bigint(20) unsigned NOT NULL DEFAULT 0,
+  orders_count int(11) NOT NULL DEFAULT 0,
+  gross decimal(14,4) NOT NULL DEFAULT 0.0000,
+  discount decimal(14,4) NOT NULL DEFAULT 0.0000,
+  tax decimal(14,4) NOT NULL DEFAULT 0.0000,
+  shipping decimal(14,4) NOT NULL DEFAULT 0.0000,
+  rounding decimal(14,4) NOT NULL DEFAULT 0.0000,
+  refunds decimal(14,4) NOT NULL DEFAULT 0.0000,
+  net decimal(14,4) NOT NULL DEFAULT 0.0000,
+  cogs decimal(14,4) NOT NULL DEFAULT 0.0000,
+  margin decimal(14,4) NOT NULL DEFAULT 0.0000,
+  items_count decimal(14,4) NOT NULL DEFAULT 0.0000,
+  updated_at datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY  (day,hour,channel,location_id),
   KEY day (day)
 ) {$c};",
 

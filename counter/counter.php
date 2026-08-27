@@ -12,7 +12,7 @@
 defined( 'ABSPATH' ) || exit;
 
 define( 'CNTR_VERSION', '0.1.29' );  // must equal the Version: header — test_version()
-define( 'CNTR_DB_VER', 1 );          // bump with every schema change
+define( 'CNTR_DB_VER', 2 );          // bump with every schema change — D1 added cntr_sales_hourly
 define( 'CNTR_FILE', __FILE__ );
 define( 'CNTR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'CNTR_URL', plugin_dir_url( __FILE__ ) );
