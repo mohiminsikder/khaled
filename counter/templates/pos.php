@@ -36,6 +36,15 @@ $bootstrap = [
 	'searchFields'         => (string) \Counter\Settings::get( 'pos.search_fields', 'sku,barcode,name' ),
 	'discountCeilingPct'   => (string) \Counter\Settings::get( 'pos.discount_ceiling_pct', 0 ),
 	'roundingStep'         => (string) \Counter\Settings::get( 'cash.rounding_step', 1 ),
+	// B9 — decoded here, once, so pos.js never has to parse the JSON itself;
+	// a malformed setting value (should not happen — Settings::set() is the
+	// only writer) falls back to an empty map rather than a fatal, which
+	// initKeyboardMap() itself then treats as "no F-keys bound at all"
+	// rather than guessing at the old hardcoded defaults.
+	'keyboardMap'          => ( static function () {
+		$decoded = json_decode( (string) \Counter\Settings::get( 'pos.keyboard_map' ), true );
+		return is_array( $decoded ) ? $decoded : [];
+	} )(),
 	// Capability gates the terminal itself has to enforce client-side —
 	// voiding a line, discounting, overriding a price, no-sale and
 	// quick-add never round-trip the server before acting, so pos.js needs
@@ -312,6 +321,13 @@ $bootstrap = [
 		'expenseValidation'        => __( 'A category, an account, and a positive amount are required.', 'counter' ),
 
 		'sellReturnAria'           => __( 'Look up a sale to return', 'counter' ),
+
+		'searchFieldsAria'         => __( 'Search products by', 'counter' ),
+		'searchFieldsTitle'        => __( 'Search products by', 'counter' ),
+		'searchFieldSku'           => __( 'SKU', 'counter' ),
+		'searchFieldBarcode'       => __( 'Barcode', 'counter' ),
+		'searchFieldName'          => __( 'Name', 'counter' ),
+		'searchFieldsNote'         => __( 'This till only — other terminals keep their own setting.', 'counter' ),
 	],
 ];
 

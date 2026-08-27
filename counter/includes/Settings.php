@@ -36,6 +36,17 @@ class Settings {
 			'pos.discount_ceiling_pct'  => [ 0.0, 'float' ],
 			'pos.weight_barcode_prefix' => [ '2', 'string' ], // EAN-13 weight-embedded barcode prefix digit
 
+			// B9 — the same map-shaped-setting idiom as 'payments.gateway_accounts'
+			// (action name => key). Matches every F-key binding pos.js hardcoded
+			// before this task exactly, so an unconfigured shop's till behaves
+			// identically; a shop that wants F7 to mean something else edits
+			// this JSON (a proper rebind UI is the Settings screen, C8 — not
+			// built yet) rather than pos.js itself ever needing a code change.
+			// Escape (void line/cart) and the arrow keys are deliberately
+			// absent — navigation/system-level, not one of the discrete
+			// checkout-bar-shaped actions this map exists to rebind.
+			'pos.keyboard_map'          => [ '{"F2":"pay","F3":"qty","F4":"discount","F5":"new_item","F6":"customer","F7":"hold","F8":"resume","F9":"return","F10":"no_sale"}', 'string' ],
+
 			'offline.enabled'          => [ false, 'bool' ],  // P7 turns this on
 			'offline.max_age_hours'    => [ 72, 'int' ],
 			'offline.challan_policy'   => [ 'provisional', 'string' ],

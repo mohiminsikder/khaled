@@ -363,6 +363,31 @@ let quickAddBody = null;
 try { quickAddBody = quickAddCall ? JSON.parse(quickAddCall.opts.body) : null; } catch (e) { quickAddBody = null; }
 assert(!!quickAddBody && 13 === quickAddBody.category_id && '5' === quickAddBody.alert_qty, `B8: quick-add posts the chosen category and alert quantity (body: ${JSON.stringify(quickAddBody)})`);
 
+// -- B9: configurable search fields and keyboard map.
+// Sugar's own SKU (8901234567948) never appears in its name/barcode, so
+// searching it is a clean way to prove SKU-only matches disappear once
+// SKU is turned off.
+const skuMatchBefore = await p.evaluate(() => window.CNTR._pos.searchByText('8901234567948').length);
+assert(skuMatchBefore > 0, `B9: a SKU search matches before the field is turned off (${skuMatchBefore} result(s))`);
+
+await p.click('#cntr-search-fields-btn'); await p.waitForTimeout(300);
+await p.uncheck('input[data-field="sku"]');
+await p.click('#cntr-search-fields-close'); await p.waitForTimeout(300);
+const skuMatchAfter = await p.evaluate(() => window.CNTR._pos.searchByText('8901234567948').length);
+assert(0 === skuMatchAfter, `B9: turning a search field off removes it from matching (${skuMatchAfter} result(s) after disabling SKU)`);
+
+// Restore it so nothing downstream (there's nothing after this, but for
+// hygiene) is left in a surprising state.
+await p.click('#cntr-search-fields-btn'); await p.waitForTimeout(300);
+await p.check('input[data-field="sku"]');
+await p.click('#cntr-search-fields-close'); await p.waitForTimeout(300);
+
+// F7 is rebound to 'no_sale' in this harness's own CFG.keyboardMap
+// (instead of its default 'hold') — pressing it must fire THAT action.
+await p.keyboard.press('F7'); await p.waitForTimeout(400);
+assert(await p.isVisible('#cntr-no-sale-reason'), 'B9: a rebound key (F7 -> no_sale) fires the new action, not its old default (hold)');
+await p.click('#cntr-no-sale-cancel'); await p.waitForTimeout(300);
+
 await b.close();
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

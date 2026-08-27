@@ -41,6 +41,13 @@ window.CNTR = {
     { id: 1, name: 'Cash Drawer', kind: 'cash' },
     { id: 5, name: 'Bank', kind: 'bank' }
   ],
+  // B9 — F7 deliberately rebound to 'no_sale' instead of its default
+  // 'hold', so the DOM suite can prove a rebound key actually fires the
+  // NEW action rather than assuming initKeyboardMap()'s own dispatch works.
+  keyboardMap: {
+    F2: 'pay', F3: 'qty', F4: 'discount', F5: 'new_item', F6: 'customer',
+    F7: 'no_sale', F8: 'resume', F9: 'return', F10: 'no_sale'
+  },
   productCategories: [
     { id: 12, name: 'Rice' },
     { id: 13, name: 'Grocery' }

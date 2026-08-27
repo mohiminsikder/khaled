@@ -251,6 +251,13 @@
 			expenseValidation: 'A category, an account, and a positive amount are required.',
 
 			sellReturnAria: 'Look up a sale to return',
+
+			searchFieldsAria: 'Search products by',
+			searchFieldsTitle: 'Search products by',
+			searchFieldSku: 'SKU',
+			searchFieldBarcode: 'Barcode',
+			searchFieldName: 'Name',
+			searchFieldsNote: 'This till only — other terminals keep their own setting.',
 		},
 		CFG.strings || {}
 	);
@@ -790,6 +797,97 @@
 			.map((f) => f.trim())
 			.filter(Boolean);
 		return INDEX.all.filter((r) => fields.some((f) => String(r[f] || '').toLowerCase().includes(needle))).slice(0, 20);
+	}
+
+	// -- B9: "Search products by" — the magnifier popover ---------------------------
+	//
+	// This TILL's own override of the shop-wide pos.search_fields default,
+	// not a shop-wide change — a real till is "a dedicated machine
+	// bookmarked to its own /pos/?register=<id>" (Pos\Terminal.php's own
+	// docblock), so a per-terminal preference belongs in THIS browser's
+	// localStorage, never a server write a manager never asked for. Read
+	// once at boot() (see its own call site) so a returning cashier's
+	// choice survives a reload; searchByText() itself needed no change at
+	// all — it already re-reads CFG.searchFields fresh on every call (F6).
+
+	const SEARCH_FIELDS_STORAGE_KEY = 'cntr_search_fields';
+	const SEARCH_FIELD_OPTIONS = [
+		{ field: 'sku', label: () => STRINGS.searchFieldSku },
+		{ field: 'barcode', label: () => STRINGS.searchFieldBarcode },
+		{ field: 'name', label: () => STRINGS.searchFieldName },
+	];
+
+	function loadSearchFieldsOverride() {
+		try {
+			const stored = localStorage.getItem(SEARCH_FIELDS_STORAGE_KEY);
+			if (stored) CFG.searchFields = stored;
+		} catch (e) {
+			// Private-browsing/blocked storage — CFG.searchFields keeps
+			// whatever the server bootstrapped; searchByText() behaves
+			// exactly as it did before this task.
+		}
+	}
+
+	let searchFieldsModalState = null; // {}
+
+	function openSearchFieldsModal() {
+		searchFieldsModalState = {};
+		renderSearchFieldsModal();
+	}
+
+	function closeSearchFieldsModal() {
+		searchFieldsModalState = null;
+		const root = document.getElementById('cntr-search-fields');
+		if (root) {
+			root.hidden = true;
+			root.innerHTML = '';
+		}
+		restoreFocus();
+	}
+
+	function toggleSearchField(field, checked) {
+		const current = String(CFG.searchFields || 'sku,barcode,name')
+			.split(',')
+			.map((f) => f.trim())
+			.filter(Boolean);
+		const next = checked ? Array.from(new Set([...current, field])) : current.filter((f) => f !== field);
+		CFG.searchFields = next.join(',');
+		try {
+			localStorage.setItem(SEARCH_FIELDS_STORAGE_KEY, CFG.searchFields);
+		} catch (e) {
+			// Same "this till's own preference, best-effort" posture as
+			// loadSearchFieldsOverride() — the toggle still works for the
+			// REST of this session even if it can't survive a reload.
+		}
+	}
+
+	function renderSearchFieldsModal() {
+		const root = document.getElementById('cntr-search-fields');
+		if (!root || !searchFieldsModalState) return;
+		const active = String(CFG.searchFields || 'sku,barcode,name')
+			.split(',')
+			.map((f) => f.trim());
+		root.innerHTML = `
+			<div class="cntr-modal-box">
+				<h2>${STRINGS.searchFieldsTitle}</h2>
+				${SEARCH_FIELD_OPTIONS.map(
+					(o) => `<label class="cntr-search-field-option">
+						<input type="checkbox" data-field="${o.field}"${active.includes(o.field) ? ' checked' : ''}>
+						${escapeHtml(o.label())}
+					</label>`
+				).join('')}
+				<p class="cntr-search-fields-note">${STRINGS.searchFieldsNote}</p>
+				<div class="cntr-modal-actions">
+					<button type="button" id="cntr-search-fields-close">${STRINGS.cancelBtn}</button>
+				</div>
+			</div>
+		`;
+		root.hidden = false;
+		root.querySelectorAll('input[type="checkbox"]').forEach((input) => {
+			input.addEventListener('change', () => toggleSearchField(input.dataset.field, input.checked));
+		});
+		const closeBtn = document.getElementById('cntr-search-fields-close');
+		if (closeBtn) closeBtn.addEventListener('click', closeSearchFieldsModal);
 	}
 
 	/**
@@ -1676,9 +1774,31 @@
 	// -- Keyboard map ---------------------------------------------------------------
 	// scan/type+Enter: add item (default, no confirmation)
 	// Enter (empty search): take exact cash, print, clear
-	// F2: tender screen  F3: change qty  F4: line discount (capability-gated)
-	// F6: attach customer  F7/F8: hold/resume  F9: return/exchange
-	// F10: no-sale (capability-gated)  Esc: void line, then cart
+	// Every OTHER binding below is read from CFG.keyboardMap (B9,
+	// Settings::get('pos.keyboard_map')) rather than hardcoded — pay, qty,
+	// discount, new_item, customer, hold, resume, return, no_sale are action
+	// NAMES, not key names; which physical key fires which action is
+	// entirely the setting's call. A shop that never configured one gets
+	// exactly today's F2-F10 layout (templates/pos.php's own bootstrap
+	// decodes the setting's default, which matches it verbatim).
+	// ArrowUp/ArrowDown/Escape stay hardcoded — system-level navigation and
+	// void, never one of the discrete checkout-bar-shaped actions this map
+	// exists to rebind.
+
+	/** name -> the function a rebound key actually fires. Rebuilt fresh, not module-level, so it never captures a stale reference to a function defined later in this same file. */
+	function keyboardActions() {
+		return {
+			pay: openTenderScreen,
+			qty: changeSelectedQty,
+			discount: lineDiscountPrompt,
+			new_item: openQuickAdd,
+			customer: attachCustomerPrompt,
+			hold: holdSale,
+			resume: resumeSale,
+			return: openReturnFlow,
+			no_sale: noSale,
+		};
+	}
 
 	function initKeyboardMap() {
 		addEventListener('keydown', (e) => {
@@ -1687,55 +1807,25 @@
 					e.preventDefault();
 					if (searchResultsState) moveResultSelection(-1);
 					else moveSelection(-1);
-					break;
+					return;
 				case 'ArrowDown':
 					e.preventDefault();
 					if (searchResultsState) moveResultSelection(1);
 					else moveSelection(1);
-					break;
-				case 'F2':
-					e.preventDefault();
-					openTenderScreen();
-					break;
-				case 'F3':
-					e.preventDefault();
-					changeSelectedQty();
-					break;
-				case 'F4':
-					e.preventDefault();
-					lineDiscountPrompt();
-					break;
-				case 'F5':
-					e.preventDefault();
-					openQuickAdd();
-					break;
-				case 'F6':
-					e.preventDefault();
-					attachCustomerPrompt();
-					break;
-				case 'F7':
-					e.preventDefault();
-					holdSale();
-					break;
-				case 'F8':
-					e.preventDefault();
-					resumeSale();
-					break;
-				case 'F9':
-					e.preventDefault();
-					openReturnFlow();
-					break;
-				case 'F10':
-					e.preventDefault();
-					noSale();
-					break;
+					return;
 				case 'Escape':
 					e.preventDefault();
 					if (searchResultsState) clearSearchResults();
 					else voidLineThenCart();
-					break;
+					return;
 				default:
 					break;
+			}
+			const actionName = (CFG.keyboardMap || {})[e.key];
+			const action = actionName ? keyboardActions()[actionName] : null;
+			if (action) {
+				e.preventDefault();
+				action();
 			}
 		});
 	}
@@ -3651,17 +3741,26 @@
 	 * the bar dims the label (never blocks the key itself, which still
 	 * surfaces its own reason via requireCap() if actually pressed).
 	 */
+	/** B9 — action name -> whichever key CFG.keyboardMap currently binds it to, so the footer's own hints stay accurate after a rebind rather than showing a stale F-key. */
+	function keyForAction(actionName) {
+		const map = CFG.keyboardMap || {};
+		for (const k in map) {
+			if (map[k] === actionName) return k;
+		}
+		return '';
+	}
+
 	const KEY_BAR = [
-		{ key: 'F2', label: STRINGS.keyPay },
-		{ key: 'F3', label: STRINGS.keyQty },
-		{ key: 'F4', label: STRINGS.keyDiscount, cap: 'cntr_discount_line' },
-		{ key: 'F5', label: STRINGS.keyNewItem, cap: 'cntr_manage_stock' },
-		{ key: 'F6', label: STRINGS.keyCustomer },
-		{ key: 'F7', label: STRINGS.keyHold },
-		{ key: 'F8', label: STRINGS.keyResume },
-		{ key: 'F9', label: STRINGS.keyReturn },
-		{ key: 'F10', label: STRINGS.keyNoSale, cap: 'cntr_no_sale' },
-		{ key: 'Esc', label: STRINGS.keyVoid, cap: 'cntr_void_line' },
+		{ action: 'pay', label: STRINGS.keyPay },
+		{ action: 'qty', label: STRINGS.keyQty },
+		{ action: 'discount', label: STRINGS.keyDiscount, cap: 'cntr_discount_line' },
+		{ action: 'new_item', label: STRINGS.keyNewItem, cap: 'cntr_manage_stock' },
+		{ action: 'customer', label: STRINGS.keyCustomer },
+		{ action: 'hold', label: STRINGS.keyHold },
+		{ action: 'resume', label: STRINGS.keyResume },
+		{ action: 'return', label: STRINGS.keyReturn },
+		{ action: 'no_sale', label: STRINGS.keyNoSale, cap: 'cntr_no_sale' },
+		{ key: 'Esc', label: STRINGS.keyVoid, cap: 'cntr_void_line' }, // hardcoded — not one of CFG.keyboardMap's rebindable actions
 	];
 
 	function render() {
@@ -3809,6 +3908,7 @@
 				}
 				<div class="cntr-pos-search">
 					<div class="cntr-pos-search-row">
+						<button type="button" id="cntr-search-fields-btn" class="cntr-search-magnifier" aria-label="${STRINGS.searchFieldsAria}" title="${STRINGS.searchFieldsAria}">&#128269;</button>
 						<input id="cntr-search" type="text" placeholder="${escapeHtml(STRINGS.searchPlaceholder)}" autofocus>
 						<span class="cntr-pos-total">${STRINGS.cartTotal} ${formatMoney(footer.total)}</span>
 					</div>
@@ -3853,9 +3953,10 @@
 					<button type="button" id="cntr-checkout-documents">${STRINGS.checkoutBarDocumentsBtn}</button>
 				</div>
 				<footer class="cntr-pos-keybar">
-					${KEY_BAR.map(
-						(k) => `<span class="cntr-key${k.cap && CFG.caps && !CFG.caps[k.cap] ? ' cntr-key-disabled' : ''}"><b>${k.key}</b> ${escapeHtml(k.label)}</span>`
-					).join('')}
+					${KEY_BAR.map((k) => {
+						const key = k.key || keyForAction(k.action);
+						return `<span class="cntr-key${k.cap && CFG.caps && !CFG.caps[k.cap] ? ' cntr-key-disabled' : ''}"><b>${escapeHtml(key)}</b> ${escapeHtml(k.label)}</span>`;
+					}).join('')}
 				</footer>
 			</div>
 			<div id="cntr-tender" class="cntr-modal" hidden></div>
@@ -3871,6 +3972,7 @@
 			<div id="cntr-close-register" class="cntr-modal" hidden></div>
 			<div id="cntr-documents" class="cntr-modal" hidden></div>
 			<div id="cntr-expense" class="cntr-modal" hidden></div>
+			<div id="cntr-search-fields" class="cntr-modal" hidden></div>
 		`;
 
 		const search = document.getElementById('cntr-search');
@@ -3982,6 +4084,10 @@
 		if (expenseBtn) expenseBtn.addEventListener('click', openExpenseModal);
 		const sellReturnBtn = document.getElementById('cntr-sell-return-btn');
 		if (sellReturnBtn) sellReturnBtn.addEventListener('click', openReturnFlow);
+
+		// B9 — the magnifier next to the search box.
+		const searchFieldsBtn = document.getElementById('cntr-search-fields-btn');
+		if (searchFieldsBtn) searchFieldsBtn.addEventListener('click', openSearchFieldsModal);
 
 		// B1 — the tile grid: a category chip narrows gridProducts(), a tile
 		// tap adds 1 unit the same way a search-result click does.
@@ -4161,6 +4267,7 @@
 	// -- Boot -------------------------------------------------------------------------
 
 	async function boot() {
+		loadSearchFieldsOverride(); // B9 — before resolveShift()/render(), so the very first search already honours it
 		await resolveShift();
 		const db = await openDb();
 		drainOutbox().catch(() => {}); // whatever survived from a previous session, attempted once immediately rather than waiting for the first poll tick
