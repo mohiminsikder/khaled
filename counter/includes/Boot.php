@@ -131,6 +131,7 @@ class Boot {
 		Rest\Pin::init();
 		Rest\Attendance::init();
 		Rest\Leave::init();
+		Rest\Labels::init();
 		Pos\Terminal::init();
 		Pos\ServiceWorker::init();
 		Orders\Refunds::admin_notice_init();

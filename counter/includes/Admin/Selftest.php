@@ -185,6 +185,7 @@ class Selftest {
 		$this->test_stock_screens();
 		$this->test_roles_screen();
 		$this->test_settings_screen();
+		$this->test_label_preview();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -4201,6 +4202,59 @@ class Selftest {
 			wp_json_encode( [ 'rev_before' => $rev_before, 'rev_after' => $rev_after ] )
 		);
 		\Counter\Settings::set( 'pos.discount_ceiling_pct', $original_ceiling );
+	}
+
+	// -- C8: test_label_preview() -- 3 checks ------------------------------------------
+
+	private function test_label_preview(): void {
+		$page = [
+			'page_width_mm' => 100, 'page_height_mm' => 150, 'cols' => 2, 'rows' => 3,
+			'label_width_mm' => 40, 'label_height_mm' => 30, 'gutter_x_mm' => 2, 'gutter_y_mm' => 2,
+			'offset_top_mm' => 0, 'offset_left_mm' => 0,
+		];
+		$fields = [
+			[ 'field' => 'name', 'x_mm' => 1, 'y_mm' => 1, 'width_mm' => 30, 'height_mm' => 5, 'enabled' => true, 'font_pt' => 8 ],
+			[ 'field' => 'sku', 'x_mm' => 1, 'y_mm' => 10, 'width_mm' => 30, 'height_mm' => 5, 'enabled' => false, 'font_pt' => 8 ],
+			[ 'field' => 'barcode', 'x_mm' => 1, 'y_mm' => 16, 'width_mm' => 30, 'height_mm' => 10, 'enabled' => true, 'font_pt' => 8 ],
+		];
+
+		// 1. The preview renders the selected fields — 'sku' starts
+		// disabled and must be absent; enabling it must make it appear,
+		// without disturbing 'name'.
+		$args        = [ 'page' => $page, 'fields' => $fields, 'product_id' => 0, 'qty' => 1, 'price_group_id' => 0, 'tax_mode' => 'exclusive', 'barcode_type' => 'code128' ];
+		$off_result  = \Counter\Rest\Labels::build_preview( $args );
+		$fields[1]['enabled'] = true;
+		$args['fields']       = $fields;
+		$on_result   = \Counter\Rest\Labels::build_preview( $args );
+		$this->check(
+			'test_label_preview: the preview renders the selected fields',
+			str_contains( $off_result['html'], 'cntr-label-field-name' )
+				&& ! str_contains( $off_result['html'], 'cntr-label-field-sku' )
+				&& str_contains( $on_result['html'], 'cntr-label-field-sku' ),
+			wp_json_encode( [ 'off_has_sku' => str_contains( $off_result['html'], 'cntr-label-field-sku' ), 'on_has_sku' => str_contains( $on_result['html'], 'cntr-label-field-sku' ) ] )
+		);
+
+		// 2. A barcode type change re-renders — the same fields/page/product,
+		// only barcode_type differs, must produce different markup.
+		$args['barcode_type'] = 'code128';
+		$code128_html = \Counter\Rest\Labels::build_preview( $args )['html'];
+		$args['barcode_type'] = 'ean13';
+		$ean13_html   = \Counter\Rest\Labels::build_preview( $args )['html'];
+		$this->check(
+			'test_label_preview: a barcode type change re-renders',
+			'' !== $code128_html && '' !== $ean13_html && $code128_html !== $ean13_html,
+			wp_json_encode( [ 'same' => $code128_html === $ean13_html ] )
+		);
+
+		// 3. The sheet count matches the requested label count — this
+		// page's own capacity is 2 x 3 = 6.
+		$args['qty'] = 13;
+		$sheet_result = \Counter\Rest\Labels::build_preview( $args );
+		$this->check(
+			'test_label_preview: the sheet count matches the requested label count',
+			3 === $sheet_result['sheet_count'],
+			wp_json_encode( [ 'sheet_count' => $sheet_result['sheet_count'] ] )
+		);
 	}
 
 	/**

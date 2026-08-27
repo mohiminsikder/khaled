@@ -155,7 +155,8 @@ class Labels {
 		$wpdb->delete( $table, [ 'id' => $id ] );
 	}
 
-	private static function normalize_page( array $page ): array {
+	/** Public so a not-yet-saved template (C8's live preview) normalizes identically to what save() would store. */
+	public static function normalize_page( array $page ): array {
 		$out = [];
 		foreach ( self::PAGE_KEYS as $k ) {
 			if ( 'cols' === $k || 'rows' === $k ) {
@@ -167,7 +168,8 @@ class Labels {
 		return $out;
 	}
 
-	private static function normalize_fields( array $fields ): array {
+	/** Public — same reason as normalize_page(). */
+	public static function normalize_fields( array $fields ): array {
 		$out = [];
 		foreach ( $fields as $f ) {
 			$type = (string) ( $f['field'] ?? '' );
@@ -180,6 +182,11 @@ class Labels {
 				'y_mm'      => wc_format_decimal( $f['y_mm'] ?? 0, 3 ),
 				'width_mm'  => wc_format_decimal( $f['width_mm'] ?? 0, 3 ),
 				'height_mm' => wc_format_decimal( $f['height_mm'] ?? 0, 3 ),
+				// C8 — a field the operator has turned off keeps its own
+				// geometry rather than losing it, so switching it back on
+				// later doesn't mean re-measuring the box by hand again.
+				'enabled'   => ! isset( $f['enabled'] ) || ! empty( $f['enabled'] ),
+				'font_pt'   => max( 1, (int) ( $f['font_pt'] ?? 8 ) ),
 			];
 		}
 		return $out;
@@ -269,18 +276,28 @@ class Labels {
 		);
 
 		foreach ( $fields as $f ) {
+			// C8 — an operator's own "hide this field" toggle, not a
+			// geometry problem render_label() itself needs to solve;
+			// nothing about $f's box is touched, so re-enabling it later
+			// draws exactly where it always did.
+			if ( isset( $f['enabled'] ) && ! $f['enabled'] ) {
+				continue;
+			}
+
 			$x = max( 0.0, min( (float) $f['x_mm'], $lw ) );
 			$y = max( 0.0, min( (float) $f['y_mm'], $lh ) );
 			$w = max( 0.0, min( (float) $f['width_mm'], $lw - $x ) );
 			$h = max( 0.0, min( (float) $f['height_mm'], $lh - $y ) );
+			$font_pt = max( 1, (int) ( $f['font_pt'] ?? 8 ) );
 
 			$html .= sprintf(
-				'<div class="cntr-label-field cntr-label-field-%s" style="position:absolute;left:%smm;top:%smm;width:%smm;height:%smm;overflow:hidden;">',
+				'<div class="cntr-label-field cntr-label-field-%s" style="position:absolute;left:%smm;top:%smm;width:%smm;height:%smm;overflow:hidden;font-size:%dpt;">',
 				esc_attr( $f['field'] ),
 				self::fmt( $x ),
 				self::fmt( $y ),
 				self::fmt( $w ),
-				self::fmt( $h )
+				self::fmt( $h ),
+				$font_pt
 			);
 
 			if ( 'barcode' === $f['field'] ) {

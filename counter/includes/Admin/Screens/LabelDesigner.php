@@ -2,6 +2,8 @@
 namespace Counter\Admin\Screens;
 
 use Counter\Docs\Labels;
+use Counter\Admin\EntityPicker;
+use Counter\Pricing\Groups;
 
 defined( 'ABSPATH' ) || exit;
 
@@ -201,6 +203,8 @@ class LabelDesigner {
 					'y_mm'      => sanitize_text_field( $f['y_mm'] ?? 0 ),
 					'width_mm'  => sanitize_text_field( $f['width_mm'] ?? 0 ),
 					'height_mm' => sanitize_text_field( $f['height_mm'] ?? 0 ),
+					'enabled'   => ! empty( $f['enabled'] ),
+					'font_pt'   => absint( $f['font_pt'] ?? 8 ),
 				];
 			}
 		}
@@ -390,7 +394,7 @@ class LabelDesigner {
 		];
 		foreach ( $page_labels as $key => $label ) {
 			printf(
-				'<tr><th><label for="cntr-lbl-%1$s">%2$s</label></th><td><input type="number" step="any" id="cntr-lbl-%1$s" name="page[%1$s]" value="%3$s" required></td></tr>',
+				'<tr><th><label for="cntr-lbl-%1$s">%2$s</label></th><td><input type="number" step="any" id="cntr-lbl-%1$s" class="cntr-lbl-live" name="page[%1$s]" value="%3$s" required></td></tr>',
 				esc_attr( $key ),
 				esc_html( $label ),
 				esc_attr( (string) ( $page[ $key ] ?? '' ) )
@@ -399,7 +403,7 @@ class LabelDesigner {
 		echo '</tbody></table>';
 
 		echo '<h3>' . esc_html__( 'Fields on one label', 'counter' ) . '</h3>';
-		echo '<table class="widefat" id="cntr-lbl-fields"><thead><tr><th>' . esc_html__( 'Field', 'counter' ) . '</th><th>' . esc_html__( 'x (mm)', 'counter' ) . '</th><th>' . esc_html__( 'y (mm)', 'counter' ) . '</th><th>' . esc_html__( 'width (mm)', 'counter' ) . '</th><th>' . esc_html__( 'height (mm)', 'counter' ) . '</th><th></th></tr></thead><tbody>';
+		echo '<table class="widefat" id="cntr-lbl-fields"><thead><tr><th>' . esc_html__( 'Show', 'counter' ) . '</th><th>' . esc_html__( 'Field', 'counter' ) . '</th><th>' . esc_html__( 'x (mm)', 'counter' ) . '</th><th>' . esc_html__( 'y (mm)', 'counter' ) . '</th><th>' . esc_html__( 'width (mm)', 'counter' ) . '</th><th>' . esc_html__( 'height (mm)', 'counter' ) . '</th><th>' . esc_html__( 'Point size', 'counter' ) . '</th><th></th></tr></thead><tbody>';
 		foreach ( $fields as $i => $f ) {
 			self::render_field_row( $i, $f );
 		}
@@ -409,33 +413,73 @@ class LabelDesigner {
 		echo '<p><button type="submit" class="button button-primary">' . esc_html__( 'Save template', 'counter' ) . '</button></p>';
 		echo '</form>';
 
-		if ( $editing ) {
-			echo '<h3>' . esc_html__( 'Preview (sample data)', 'counter' ) . '</h3>';
-			echo Labels::render_label( $editing, self::SAMPLE_DATA ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- render_label() escapes every field value itself
-		}
-
+		self::render_preview_panel();
 		self::script();
 	}
 
 	private static function render_field_row( int $i, array $f = [] ): void {
-		printf( '<tr><td><select name="fields[%1$d][field]">', $i );
+		$enabled = ! isset( $f['enabled'] ) || ! empty( $f['enabled'] );
+		printf( '<tr><td><input type="checkbox" class="cntr-lbl-field-enabled" name="fields[%d][enabled]" value="1"%s></td>', $i, $enabled ? ' checked' : '' );
+		printf( '<td><select class="cntr-lbl-live" name="fields[%1$d][field]">', $i );
 		foreach ( Labels::FIELD_TYPES as $type ) {
 			printf( '<option value="%1$s"%2$s>%1$s</option>', esc_attr( $type ), ( $f['field'] ?? '' ) === $type ? ' selected' : '' );
 		}
 		echo '</select></td>';
 		foreach ( [ 'x_mm', 'y_mm', 'width_mm', 'height_mm' ] as $k ) {
 			printf(
-				'<td><input type="number" step="any" name="fields[%d][%s]" value="%s" style="width:80px"></td>',
+				'<td><input type="number" step="any" class="cntr-lbl-live" name="fields[%d][%s]" value="%s" style="width:80px"></td>',
 				$i,
 				esc_attr( $k ),
 				esc_attr( (string) ( $f[ $k ] ?? '' ) )
 			);
 		}
+		printf(
+			'<td><input type="number" step="1" min="1" class="cntr-lbl-live" name="fields[%d][font_pt]" value="%s" style="width:60px"></td>',
+			$i,
+			esc_attr( (string) ( $f['font_pt'] ?? 8 ) )
+		);
 		echo '<td><button type="button" class="button-link-delete cntr-lbl-remove-field">' . esc_html__( 'Remove', 'counter' ) . '</button></td></tr>';
+	}
+
+	/**
+	 * C8 — everything here is preview-only input: which product/price
+	 * group/tax mode/barcode type/count to render the CURRENT (possibly
+	 * unsaved) geometry against. None of it is part of the template itself
+	 * — a template is geometry, print_batch()'s own product_line() already
+	 * resolves real product data at actual print time the same way this
+	 * panel does for the preview.
+	 */
+	private static function render_preview_panel(): void {
+		echo '<h3>' . esc_html__( 'Live preview', 'counter' ) . '</h3>';
+		echo '<table class="form-table"><tbody>';
+		echo '<tr><th>' . esc_html__( 'Preview product', 'counter' ) . '</th><td>';
+		EntityPicker::render( [ 'id' => 'cntr-lbl-preview-product', 'hidden_name' => 'preview_product_id', 'type' => 'product', 'placeholder' => __( 'Type a product name… (leave blank for sample data)', 'counter' ) ] );
+		echo '</td></tr>';
+		echo '<tr><th>' . esc_html__( 'Price group', 'counter' ) . '</th><td><select id="cntr-lbl-price-group" class="cntr-lbl-live">';
+		printf( '<option value="0">%s</option>', esc_html__( 'Product default', 'counter' ) );
+		foreach ( Groups::all( 'active' ) as $g ) {
+			printf( '<option value="%d">%s</option>', (int) $g['id'], esc_html( $g['name'] ) );
+		}
+		echo '</select></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Tax', 'counter' ) . '</th><td><select id="cntr-lbl-tax-mode" class="cntr-lbl-live">';
+		printf( '<option value="exclusive">%s</option>', esc_html__( 'Exclusive of VAT', 'counter' ) );
+		printf( '<option value="inclusive">%s</option>', esc_html__( 'Inclusive of VAT', 'counter' ) );
+		echo '</select></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Barcode type', 'counter' ) . '</th><td><select id="cntr-lbl-barcode-type" class="cntr-lbl-live">';
+		printf( '<option value="code128">%s</option>', esc_html__( 'Code 128', 'counter' ) );
+		printf( '<option value="ean13">%s</option>', esc_html__( 'EAN-13', 'counter' ) );
+		echo '</select></td></tr>';
+		echo '<tr><th>' . esc_html__( 'Label count', 'counter' ) . '</th><td><input type="number" min="1" step="1" id="cntr-lbl-qty" class="cntr-lbl-live" value="1" style="width:80px"></td></tr>';
+		echo '</tbody></table>';
+
+		echo '<p id="cntr-lbl-sheet-count"></p>';
+		echo '<div id="cntr-lbl-preview" style="padding:16px;background:#f0f0f1;overflow:auto;"><div id="cntr-lbl-preview-inner">' . esc_html__( 'Adjust anything above to see the label update.', 'counter' ) . '</div></div>';
 	}
 
 	private static function script(): void {
 		$field_types = wp_json_encode( Labels::FIELD_TYPES );
+		$rest_url    = esc_url_raw( rest_url( 'counter/v1/labels/preview' ) );
+		$nonce       = wp_create_nonce( 'wp_rest' );
 		?>
 		<script>
 		( function () {
@@ -446,13 +490,16 @@ class LabelDesigner {
 
 			function newRow() {
 				var tr = document.createElement( 'tr' );
-				var select = '<select name="fields[' + idx + '][field]">' + types.map( function ( t ) { return '<option value="' + t + '">' + t + '</option>'; } ).join( '' ) + '</select>';
+				var select = '<select class="cntr-lbl-live" name="fields[' + idx + '][field]">' + types.map( function ( t ) { return '<option value="' + t + '">' + t + '</option>'; } ).join( '' ) + '</select>';
 				var inputs = [ 'x_mm', 'y_mm', 'width_mm', 'height_mm' ].map( function ( k ) {
-					return '<td><input type="number" step="any" name="fields[' + idx + '][' + k + ']" value="0" style="width:80px"></td>';
+					return '<td><input type="number" step="any" class="cntr-lbl-live" name="fields[' + idx + '][' + k + ']" value="0" style="width:80px"></td>';
 				} ).join( '' );
-				tr.innerHTML = '<td>' + select + '</td>' + inputs + '<td><button type="button" class="button-link-delete cntr-lbl-remove-field">Remove</button></td>';
+				var enabled = '<td><input type="checkbox" class="cntr-lbl-field-enabled" name="fields[' + idx + '][enabled]" value="1" checked></td>';
+				var fontPt = '<td><input type="number" step="1" min="1" class="cntr-lbl-live" name="fields[' + idx + '][font_pt]" value="8" style="width:60px"></td>';
+				tr.innerHTML = enabled + '<td>' + select + '</td>' + inputs + fontPt + '<td><button type="button" class="button-link-delete cntr-lbl-remove-field">Remove</button></td>';
 				tbody.appendChild( tr );
 				idx++;
+				schedulePreview();
 			}
 
 			if ( addBtn ) {
@@ -462,9 +509,96 @@ class LabelDesigner {
 				tbody.addEventListener( 'click', function ( e ) {
 					if ( e.target.classList.contains( 'cntr-lbl-remove-field' ) ) {
 						e.target.closest( 'tr' ).remove();
+						schedulePreview();
 					}
 				} );
 			}
+
+			// -- C8: live preview -----------------------------------------------------
+
+			var REST_URL = <?php echo wp_json_encode( $rest_url ); ?>;
+			var NONCE = <?php echo wp_json_encode( $nonce ); ?>;
+			var previewInner = document.getElementById( 'cntr-lbl-preview-inner' );
+			var sheetCountEl = document.getElementById( 'cntr-lbl-sheet-count' );
+			var debounceTimer;
+
+			function pageValues() {
+				var page = {};
+				document.querySelectorAll( '[name^="page["]' ).forEach( function ( el ) {
+					var m = el.name.match( /page\[([^\]]+)\]/ );
+					if ( m ) { page[ m[1] ] = el.value; }
+				} );
+				return page;
+			}
+
+			function fieldValues() {
+				var fields = [];
+				if ( ! tbody ) { return fields; }
+				Array.prototype.forEach.call( tbody.children, function ( tr ) {
+					var f = {};
+					tr.querySelectorAll( '[name]' ).forEach( function ( el ) {
+						var m = el.name.match( /\[([a-z_]+)\]$/ );
+						if ( ! m ) { return; }
+						f[ m[1] ] = 'checkbox' === el.type ? ( el.checked ? 1 : 0 ) : el.value;
+					} );
+					fields.push( f );
+				} );
+				return fields;
+			}
+
+			function runPreview() {
+				if ( ! previewInner ) { return; }
+				var productField = document.getElementById( 'cntr-lbl-preview-product' );
+				var priceGroupEl = document.getElementById( 'cntr-lbl-price-group' );
+				var taxModeEl = document.getElementById( 'cntr-lbl-tax-mode' );
+				var barcodeTypeEl = document.getElementById( 'cntr-lbl-barcode-type' );
+				var qtyEl = document.getElementById( 'cntr-lbl-qty' );
+				var qty = qtyEl ? ( parseInt( qtyEl.value, 10 ) || 1 ) : 1;
+
+				var body = {
+					page: pageValues(),
+					fields: fieldValues(),
+					product_id: productField ? ( parseInt( productField.value, 10 ) || 0 ) : 0,
+					price_group_id: priceGroupEl ? ( parseInt( priceGroupEl.value, 10 ) || 0 ) : 0,
+					tax_mode: taxModeEl ? taxModeEl.value : 'exclusive',
+					barcode_type: barcodeTypeEl ? barcodeTypeEl.value : 'code128',
+					qty: qty
+				};
+
+				fetch( REST_URL, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': NONCE },
+					body: JSON.stringify( body )
+				} )
+					.then( function ( r ) { return r.json(); } )
+					.then( function ( data ) {
+						if ( data && data.html ) {
+							previewInner.innerHTML = data.html;
+						}
+						if ( sheetCountEl && data && undefined !== data.sheet_count ) {
+							sheetCountEl.textContent = qty + ' label(s) needs ' + data.sheet_count + ' sheet(s).';
+						}
+					} )
+					.catch( function () { /* a transient preview failure is not worth surfacing as an error */ } );
+			}
+
+			function schedulePreview() {
+				clearTimeout( debounceTimer );
+				debounceTimer = setTimeout( runPreview, 200 );
+			}
+
+			document.addEventListener( 'input', function ( e ) {
+				if ( e.target.classList && ( e.target.classList.contains( 'cntr-lbl-live' ) || e.target.classList.contains( 'cntr-lbl-field-enabled' ) ) ) {
+					schedulePreview();
+				}
+			} );
+			document.addEventListener( 'change', function ( e ) {
+				if ( e.target.id === 'cntr-lbl-preview-product' || ( e.target.classList && ( e.target.classList.contains( 'cntr-lbl-live' ) || e.target.classList.contains( 'cntr-lbl-field-enabled' ) ) ) ) {
+					schedulePreview();
+				}
+			} );
+
+			schedulePreview();
 		} )();
 		</script>
 		<?php
