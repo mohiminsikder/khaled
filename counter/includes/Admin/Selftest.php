@@ -182,6 +182,7 @@ class Selftest {
 		$this->test_products_screen();
 		$this->test_purchase_screens();
 		$this->test_sales_screen();
+		$this->test_stock_screens();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -3756,7 +3757,7 @@ class Selftest {
 		// running test's real same-day sales at the shared default
 		// location.
 		$location_id = \Counter\Stock\Locations::create(
-			[ 'name' => 'Counter Selftest Fixture Sales Screen Location', 'code' => 'CNTR-SS-SALES-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+			[ 'name' => 'Counter Selftest Fixture Sales Screen Location', 'code' => 'CNTR-SELFTEST-SS1-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
 		);
 		$this->location_fixture_ids[] = $location_id;
 
@@ -3821,7 +3822,7 @@ class Selftest {
 			// default_filters()'s own "no filter" sentinel, so explain_empty()
 			// correctly saw nothing to blame — the fixture's code was the
 			// bug, not the function).
-			[ 'name' => 'Counter Selftest Fixture Sales Screen Empty Location', 'code' => 'CNTR-SS-SALES-E-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+			[ 'name' => 'Counter Selftest Fixture Sales Screen Empty Location', 'code' => 'CNTR-SELFTEST-SS2-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
 		);
 		$this->location_fixture_ids[] = $empty_location_id;
 		$blamed = \Counter\Admin\Screens\Sales::explain_empty( [ 'location_id' => $empty_location_id ] );
@@ -3874,6 +3875,155 @@ class Selftest {
 			'test_sales_screen: row actions honour their capabilities',
 			array_key_exists( 'sell_return', $actions_with_refund ) && ! array_key_exists( 'sell_return', $actions_without_refund ),
 			wp_json_encode( [ 'with' => array_keys( $actions_with_refund ), 'without' => array_keys( $actions_without_refund ) ] )
+		);
+	}
+
+	// -- C5: test_stock_screens() -- 6 checks ------------------------------------------
+
+	private function test_stock_screens(): void {
+		global $wpdb;
+
+		// 1. A duplicate location name is refused — teardown defect #10's
+		// own "two locations both named Pharmacy."
+		$dup_name = 'Counter Selftest Fixture Stock Screens Dup Loc ' . substr( wp_generate_password( 6, false ), 0, 6 );
+		$first    = \Counter\Stock\Locations::create( [ 'name' => $dup_name, 'code' => 'CNTR-SELFTEST-SD1-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ] );
+		if ( ! is_wp_error( $first ) ) {
+			$this->location_fixture_ids[] = $first;
+		}
+		$duplicate = \Counter\Stock\Locations::create( [ 'name' => $dup_name, 'code' => 'CNTR-SELFTEST-SD2-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ] );
+		$this->check(
+			'test_stock_screens: a duplicate location name is refused',
+			! is_wp_error( $first ) && is_wp_error( $duplicate ) && 'cntr_location_duplicate_name' === $duplicate->get_error_code(),
+			is_wp_error( $duplicate ) ? $duplicate->get_error_code() : wp_json_encode( $duplicate )
+		);
+
+		// 2. A new register gets a unique prefix — two registers, neither
+		// given one explicitly, must not collide.
+		$loc_for_registers = is_wp_error( $first ) ? \Counter\Stock\Locations::default_id() : $first;
+		$reg_a = \Counter\Pos\Registers::create( [ 'name' => 'Counter Selftest Fixture Stock Screens Register A', 'location_id' => $loc_for_registers ] );
+		$reg_b = \Counter\Pos\Registers::create( [ 'name' => 'Counter Selftest Fixture Stock Screens Register B', 'location_id' => $loc_for_registers ] );
+		if ( ! is_wp_error( $reg_a ) ) {
+			$this->register_fixture_ids[] = $reg_a;
+		}
+		if ( ! is_wp_error( $reg_b ) ) {
+			$this->register_fixture_ids[] = $reg_b;
+		}
+		$prefix_a = is_wp_error( $reg_a ) ? null : ( \Counter\Pos\Registers::get( $reg_a )['prefix'] ?? null );
+		$prefix_b = is_wp_error( $reg_b ) ? null : ( \Counter\Pos\Registers::get( $reg_b )['prefix'] ?? null );
+		$this->check(
+			'test_stock_screens: a new register gets a unique prefix',
+			// '' !== null is itself a true statement — this used to let a
+			// null prefix (found live: Registers::create() silently
+			// returning the wrong id on a failed insert) slip through as a
+			// spurious PASS. is_string() closes that off for real.
+			! is_wp_error( $reg_a ) && ! is_wp_error( $reg_b ) && is_string( $prefix_a ) && '' !== $prefix_a && is_string( $prefix_b ) && '' !== $prefix_b && $prefix_a !== $prefix_b,
+			wp_json_encode( [ 'prefix_a' => $prefix_a, 'prefix_b' => $prefix_b ] )
+		);
+
+		// A two-location fixture for the transfer check.
+		$location_from = \Counter\Stock\Locations::create( [ 'name' => 'Counter Selftest Fixture Stock Screens From', 'code' => 'CNTR-SELFTEST-SF-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ] );
+		$location_to   = \Counter\Stock\Locations::create( [ 'name' => 'Counter Selftest Fixture Stock Screens To', 'code' => 'CNTR-SELFTEST-ST-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ] );
+		if ( ! is_wp_error( $location_from ) ) {
+			$this->location_fixture_ids[] = $location_from;
+		}
+		if ( ! is_wp_error( $location_to ) ) {
+			$this->location_fixture_ids[] = $location_to;
+		}
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture Stock Screens Product' );
+		$product->set_regular_price( '20.00' );
+		$product->set_manage_stock( true );
+		$product->set_stock_quantity( 0 );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save();
+		$this->product_fixture_ids[] = $product->get_id();
+
+		Db::transaction(
+			function () use ( $product, $location_from ) {
+				\Counter\Stock\Ledger::move(
+					[ 'product_id' => $product->get_id(), 'variation_id' => 0, 'location_id' => $location_from, 'qty_delta' => '10', 'reason' => 'opening', 'ref_type' => 'selftest_stock_screens', 'ref_id' => 0 ]
+				);
+			}
+		);
+
+		$moves_table   = Install::table( 'stock_moves' );
+		$batches_table = Install::table( 'batches' );
+		$batches_before = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$batches_table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no variables
+
+		$transfer_id = null;
+		$transfer_error = null;
+		try {
+			$transfer_id = \Counter\Stock\Transfers::create(
+				[ 'from_location_id' => $location_from, 'to_location_id' => $location_to, 'lines' => [ [ 'product_id' => $product->get_id(), 'variation_id' => 0, 'qty' => '4' ] ] ]
+			);
+			$this->transfer_fixture_ids[] = $transfer_id;
+			\Counter\Stock\Transfers::send( $transfer_id, get_current_user_id() );
+			$lines = \Counter\Stock\Transfers::lines( $transfer_id );
+			\Counter\Stock\Transfers::receive( $transfer_id, [ $lines[0]['id'] => '4' ], get_current_user_id() );
+		} catch ( \Throwable $e ) {
+			$transfer_error = $e->getMessage();
+		}
+
+		// 3. A transfer moves stock and nothing else — the two moves
+		// (transfer_out at source, transfer_in at destination) net to
+		// zero, and no batch is created or touched by a transfer at all.
+		$transfer_move_sum = null !== $transfer_id
+			? (string) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(qty_delta),0) FROM {$moves_table} WHERE ref_type = 'transfer' AND ref_id = %d", $transfer_id ) )
+			: null;
+		$batches_after = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$batches_table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no variables
+		$this->check(
+			'test_stock_screens: a transfer moves stock and nothing else',
+			null === $transfer_error && null !== $transfer_move_sum && 0 === bccomp( $transfer_move_sum, '0', 4 ) && $batches_before === $batches_after,
+			wp_json_encode( [ 'error' => $transfer_error, 'move_sum' => $transfer_move_sum, 'batches_before' => $batches_before, 'batches_after' => $batches_after ] )
+		);
+
+		// 4. A stocktake variance writes an adjustment with a reason —
+		// balance is 6 (10 opened minus the 4 transferred out) at the
+		// source location; counting 9 is a +3 variance.
+		$stocktake_id = \Counter\Stock\Stocktake::open( [ 'location_id' => $location_from, 'user_id' => get_current_user_id() ] );
+		$this->stocktake_fixture_ids[] = $stocktake_id;
+		\Counter\Stock\Stocktake::count_line( $stocktake_id, $product->get_id(), 0, '9', get_current_user_id() );
+		$stocktake_move = $wpdb->get_row(
+			$wpdb->prepare( "SELECT * FROM {$moves_table} WHERE ref_type = 'stocktake' AND ref_id = %d AND product_id = %d", $stocktake_id, $product->get_id() ),
+			ARRAY_A
+		);
+		$this->check(
+			'test_stock_screens: a stocktake variance writes an adjustment with a reason',
+			$stocktake_move && 'stocktake' === $stocktake_move['reason'] && '3.0000' === $stocktake_move['qty_delta'],
+			wp_json_encode( $stocktake_move )
+		);
+
+		// 5. Near-expiry matches at a boundary date — one batch expiring
+		// exactly 7 days out (included), one 8 days out (excluded).
+		$boundary_batch_id = \Counter\Stock\Batches::receive(
+			[ 'product_id' => $product->get_id(), 'variation_id' => 0, 'location_id' => $location_from, 'lot_no' => 'SS-BOUNDARY', 'qty_received' => '1', 'unit_cost' => '10.00', 'expiry_date' => gmdate( 'Y-m-d', strtotime( Db::now() ) + ( 7 * DAY_IN_SECONDS ) ) ]
+		);
+		$past_boundary_batch_id = \Counter\Stock\Batches::receive(
+			[ 'product_id' => $product->get_id(), 'variation_id' => 0, 'location_id' => $location_from, 'lot_no' => 'SS-PASTBOUNDARY', 'qty_received' => '1', 'unit_cost' => '10.00', 'expiry_date' => gmdate( 'Y-m-d', strtotime( Db::now() ) + ( 8 * DAY_IN_SECONDS ) ) ]
+		);
+		$this->batch_fixture_ids[] = $boundary_batch_id;
+		$this->batch_fixture_ids[] = $past_boundary_batch_id;
+		// array_column() over an ARRAY_A result set carries 'id' as a
+		// STRING (every $wpdb column comes back that way); found live —
+		// strict in_array(..., true) against the int $boundary_batch_id
+		// always failed regardless of what browse() actually returned.
+		// Cast every id to int for the comparison, not the other way
+		// around, so this stays strict about TYPE while comparing on VALUE.
+		$near_expiry_ids = array_map( 'intval', array_column( \Counter\Stock\Batches::browse( [ 'near_expiry_days' => 7 ] ), 'id' ) );
+		$this->check(
+			'test_stock_screens: near-expiry matches at a boundary date',
+			in_array( $boundary_batch_id, $near_expiry_ids, true ) && ! in_array( $past_boundary_batch_id, $near_expiry_ids, true ),
+			wp_json_encode( [ 'boundary_included' => in_array( $boundary_batch_id, $near_expiry_ids, true ), 'past_boundary_excluded' => ! in_array( $past_boundary_batch_id, $near_expiry_ids, true ) ] )
+		);
+
+		// 6. Deactivating a location with stock is refused — location_to
+		// now holds the 4 units the transfer delivered.
+		$deactivate_result = \Counter\Stock\Locations::update( $location_to, [ 'status' => 'inactive' ] );
+		$this->check(
+			'test_stock_screens: deactivating a location with stock is refused',
+			is_wp_error( $deactivate_result ) && 'cntr_location_has_stock' === $deactivate_result->get_error_code(),
+			is_wp_error( $deactivate_result ) ? $deactivate_result->get_error_code() : wp_json_encode( $deactivate_result )
 		);
 	}
 
@@ -12106,8 +12256,17 @@ class Selftest {
 		global $wpdb;
 		$table = Install::table( 'locations' );
 
-		$ids     = array_map( 'intval', $wpdb->get_col( "SELECT id FROM {$table} WHERE code LIKE 'CNTR-SELFTEST-%'" ) );
-		$foreign = array_diff( $ids, $exempt_ids );
+		// A test that never guards its own Locations::create() call before
+		// pushing onto location_fixture_ids can hand this a WP_Error instead
+		// of an id — found live, where it turned a single failed fixture
+		// create() into array_diff() fatally crashing cleanup() for the
+		// WHOLE run, leaking every other test's fixtures too. Dropping
+		// anything non-int here is the correct read of a WP_Error anyway:
+		// this run didn't actually create a row there, so it has nothing to
+		// exempt.
+		$exempt_ids = array_map( 'intval', array_filter( $exempt_ids, 'is_int' ) );
+		$ids        = array_map( 'intval', $wpdb->get_col( "SELECT id FROM {$table} WHERE code LIKE 'CNTR-SELFTEST-%'" ) );
+		$foreign    = array_diff( $ids, $exempt_ids );
 
 		if ( ! empty( $foreign ) ) {
 			return [

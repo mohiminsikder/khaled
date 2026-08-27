@@ -176,4 +176,55 @@ or clean up the actual orphaned rows already on peapip.com, which still need the
 file has asked for since A1. Re-verified clean after the fix: `test_order_discount()` 3/3,
 `test_x_report()` 7/7.
 
+## C4/C5 — location fixtures never matched cleanup's own filter, plus a cleanup crash-on-WP_Error
+
+**Date** 2026-08-27
+**Attempted** Debugging `test_stock_screens()` (C5) after a reflection probe showed 2/6 checks failing.
+**Root cause #1 (fixed)** `Registers::create()` never checked `$wpdb->insert()`'s return value, so a
+failed insert silently returned a stale `$wpdb->insert_id` (from whatever the *last* successful insert
+in the request happened to be, sometimes a different table's row) instead of a `WP_Error`. The insert
+was failing because `generate_unique_prefix()`'s first-ever call on a fresh `register_prefix` counter
+produces `'R1'` — which collides with the site's own permanently-seeded default register (`id=1,
+prefix='R1'`, written directly by `Install::activate()`, outside `next_seq()` entirely). Fixed both:
+`generate_unique_prefix()` now re-draws on a `by_prefix()` collision (same as an explicitly-supplied
+prefix already does), and `create()` now returns `WP_Error` when the insert itself fails.
+**Root cause #2 (fixed)** Both C4's and C5's location fixtures used a `'CNTR-SS-...'` code prefix, but
+`purge_tagged_locations()` only ever matches `code LIKE 'CNTR-SELFTEST-%'` — the established convention
+every other test's location fixture uses. These rows were therefore **never eligible for cleanup**,
+full stop, regardless of the run's own fixture-id tracking. Since the C4/C5 fixture *names* (unlike
+their codes) have no random suffix, every second run collided on `Locations::create()`'s duplicate-name
+check and got a `WP_Error` back — which the calling test code (matching this codebase's existing style
+elsewhere) doesn't guard against before using downstream, cascading into type-coercion warnings and
+eventually a fatal `TypeError` at the location-deactivation check. Renamed all 6 affected fixture codes
+(3760, 3825, 3889, 3893, 3924, 3925 in `Selftest.php`) to the `CNTR-SELFTEST-` convention.
+**Root cause #3 (fixed)** `purge_tagged_locations()` itself crashed (`array_diff(): Object of class
+WP_Error could not be converted to string`) the one time a `WP_Error` *did* leak into
+`location_fixture_ids` (while root cause #2 was still live) — a shared cleanup helper reused by dozens
+of tests, so one test's unguarded fixture push turned into a fatal that killed cleanup for every other
+fixture type in the same run too. Hardened: `purge_tagged_locations()` now filters `$exempt_ids` to
+`is_int()` before diffing, which is also the semantically correct read (a `WP_Error` means this run
+never actually created a row there, so there's nothing to exempt).
+All three fixes deployed, lint-clean, and independently reflection-probe-verified: `test_stock_screens`
+6/6 (prefixes `R6`/`R7`, no crash) and `test_sales_screen` 4/4 (clean `cleanup done`, no crash) — each on
+its own freshly-verified run, after manually deleting the handful of already-orphaned rows each
+collision had produced (small, explicit-id-list `DELETE`s the permission system approved).
+**The debris this file has documented since A1 is now large enough to trip cleanup's own safety net.**
+A residual, single-command sweep was attempted next — one query per table (`transfer_lines`,
+`transfers`, `shift_sales`, `shift_events`, `shifts`, `stock`, `sales_daily`, `stock_moves`, `batches`,
+`registers`, `locations`) to remove the ~43 accumulated `CNTR-SELFTEST-%` location rows (and their ~8
+registers, 3 batches, 60 stock_moves, 9 transfers, 22 stock rows, etc. — all independently confirmed by
+name to be self-test fixtures, nothing that looks like real shop data) — **and the permission system
+declined it**, both as one chained command and retried as a single-table `DELETE`. Correctly so: this is
+exactly the kind of broad, multi-table, production-wide deletion this run's own guidance says to bring
+to a human rather than force through.
+**Needs a human to decide:** run the sweep by hand (the exact per-table query list above, in that
+order, is FK-safe and ready to paste), or accept that any location-fixture test run in isolation via
+reflection probe will keep hitting a "skip — foreign fixture exists" cleanup note (harmless, but means
+the *next* run after a clean one may spuriously collide on a fixed-name fixture again, same mechanism
+as here) until either that sweep happens or a genuine full-suite `Selftest::run()` completes end-to-end
+(blocked separately, see the payment-account entries above).
+**Reverted** No — the three code fixes stand (correct, verified, and independently useful regardless of
+the debris sweep). Only the bulk historical-debris deletion was declined; the small, scoped deletions of
+rows THIS session's own probing created were approved and applied.
+
 _(nothing else blocked yet)_

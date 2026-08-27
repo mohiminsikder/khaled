@@ -363,6 +363,43 @@ class Batches {
 	}
 
 	/**
+	 * C5 — the Batches screen's own browse query. No existing method
+	 * exposed "every batch" (near_expiry() and the private
+	 * open_batches_fifo() only ever filter to a purpose); this is the same
+	 * plain SELECT/ARRAY_A shape as every other query in this class, not
+	 * new business logic. $filters: location_id, product_id, lot_no
+	 * (substring), near_expiry_days (int, when set applies the exact same
+	 * <= boundary near_expiry() itself uses — never a second definition of
+	 * "near").
+	 */
+	public static function browse( array $filters = [] ): array {
+		global $wpdb;
+		$table = Install::table( 'batches' );
+
+		$where  = [ '1=1' ];
+		$params = [];
+		if ( ! empty( $filters['location_id'] ) ) {
+			$where[]  = 'location_id = %d';
+			$params[] = (int) $filters['location_id'];
+		}
+		if ( ! empty( $filters['product_id'] ) ) {
+			$where[]  = 'product_id = %d';
+			$params[] = (int) $filters['product_id'];
+		}
+		if ( '' !== ( $filters['lot_no'] ?? '' ) ) {
+			$where[]  = 'lot_no LIKE %s';
+			$params[] = '%' . $wpdb->esc_like( (string) $filters['lot_no'] ) . '%';
+		}
+		if ( ! empty( $filters['near_expiry_days'] ) ) {
+			$where[]  = 'expiry_date IS NOT NULL AND expiry_date <= %s AND qty_remaining > 0';
+			$params[] = gmdate( 'Y-m-d', strtotime( Db::now() ) + ( (int) $filters['near_expiry_days'] * DAY_IN_SECONDS ) );
+		}
+
+		$sql = "SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY expiry_date IS NULL, expiry_date, id DESC';
+		return $params ? $wpdb->get_results( $wpdb->prepare( $sql, ...$params ), ARRAY_A ) : $wpdb->get_results( $sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $sql has no unescaped variables when $params is empty
+	}
+
+	/**
 	 * Recomputes qty_remaining from SUM(qty_delta) grouped by batch_id — the
 	 * proof this cache is honest. $batch_id = null rebuilds every batch.
 	 * $dry_run (P2.10) reports what would change without writing — used by

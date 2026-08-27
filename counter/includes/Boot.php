@@ -156,6 +156,10 @@ class Boot {
 		Admin\Screens\PurchaseOrders::init();
 		Admin\Screens\Receiving::init();
 		Admin\Screens\Sales::init();
+		Admin\Screens\Locations::init();
+		Admin\Screens\Transfers::init();
+		Admin\Screens\Batches::init();
+		Admin\Screens\Stocktake::init();
 		Cli::init();
 		Pos\Assets::init();
 	}

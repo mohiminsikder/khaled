@@ -38,7 +38,7 @@ class Menu {
 	const GROUPS = [
 		'operations' => [
 			'label' => 'Operations',
-			'slugs' => [ 'counter', 'counter-products', 'counter-adjust', 'counter-fulfilment', 'counter-zreport' ],
+			'slugs' => [ 'counter', 'counter-products', 'counter-adjust', 'counter-fulfilment', 'counter-zreport', 'counter-locations', 'counter-transfers', 'counter-batches', 'counter-stocktake' ],
 		],
 		'purchasing' => [
 			'label' => 'Purchasing',
