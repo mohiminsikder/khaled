@@ -402,6 +402,97 @@ class Reports {
 		return $rows;
 	}
 
+	/**
+	 * D3 — one row per shift (OPEN shifts included — report_register_history()
+	 * above deliberately excludes them, "the Z-report" being inherently a
+	 * closed-shift concept; this is "is a till session auditable right now,"
+	 * a different question), one column per payment method (from
+	 * cntr_tenders, is_change excluded — a change-given row is not a real
+	 * tender), transaction counts, and the drawer variance B5 already
+	 * stores. Standalone, like margin_by_product() and profit_and_loss()
+	 * above it — a nested by_method map per row doesn't fit run()'s own
+	 * flat-row CSV-export contract without distorting it.
+	 *
+	 * @return array<int,array>
+	 */
+	public static function register_report( array $args = [] ): array {
+		global $wpdb;
+		$shifts_table  = Install::table( 'shifts' );
+		$registers     = Install::table( 'registers' );
+		$tenders_table = Install::table( 'tenders' );
+
+		$where  = 'WHERE 1=1';
+		$params = [];
+		if ( '' !== ( $args['from'] ?? '' ) ) {
+			$where   .= ' AND sh.opened_at >= %s';
+			$params[] = $args['from'] . ' 00:00:00';
+		}
+		if ( '' !== ( $args['to'] ?? '' ) ) {
+			$where   .= ' AND sh.opened_at <= %s';
+			$params[] = $args['to'] . ' 23:59:59';
+		}
+		if ( ( $args['location_id'] ?? 0 ) > 0 ) {
+			$where   .= ' AND r.location_id = %d';
+			$params[] = (int) $args['location_id'];
+		}
+		if ( ( $args['register_id'] ?? 0 ) > 0 ) {
+			$where   .= ' AND sh.register_id = %d';
+			$params[] = (int) $args['register_id'];
+		}
+
+		$sql = "SELECT sh.id, sh.register_id, r.name AS register_name, sh.user_id, sh.opened_at, sh.closed_at,
+		               sh.opening_float, sh.expected_cash, sh.counted_cash, sh.variance
+		         FROM {$shifts_table} sh LEFT JOIN {$registers} r ON r.id = sh.register_id
+		         {$where} ORDER BY sh.opened_at DESC";
+		$shifts = empty( $params )
+			? $wpdb->get_results( $sql, ARRAY_A ) // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no unescaped variables when $params is empty
+			: $wpdb->get_results( $wpdb->prepare( $sql, ...$params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+
+		$shift_ids = array_map( static fn( $s ) => (int) $s['id'], $shifts );
+		$by_shift  = [];
+		if ( ! empty( $shift_ids ) ) {
+			$placeholders = implode( ',', array_fill( 0, count( $shift_ids ), '%d' ) );
+			$tender_rows  = $wpdb->get_results(
+				$wpdb->prepare(
+					"SELECT shift_id, method, SUM(amount) AS amount, COUNT(*) AS count FROM {$tenders_table} WHERE is_change = 0 AND shift_id IN ({$placeholders}) GROUP BY shift_id, method", // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $placeholders built from %-placeholders only
+					...$shift_ids
+				),
+				ARRAY_A
+			);
+			foreach ( $tender_rows as $tr ) {
+				$sid = (int) $tr['shift_id'];
+				if ( ! isset( $by_shift[ $sid ] ) ) {
+					$by_shift[ $sid ] = [ 'by_method' => [], 'transaction_count' => 0, 'tender_total' => '0.0000' ];
+				}
+				$amount                                        = wc_format_decimal( $tr['amount'], 4 );
+				$by_shift[ $sid ]['by_method'][ $tr['method'] ] = [ 'amount' => $amount, 'count' => (int) $tr['count'] ];
+				$by_shift[ $sid ]['transaction_count']         += (int) $tr['count'];
+				$by_shift[ $sid ]['tender_total']               = bcadd( $by_shift[ $sid ]['tender_total'], $amount, 4 );
+			}
+		}
+
+		foreach ( $shifts as &$s ) {
+			$sid                     = (int) $s['id'];
+			$s['id']                 = $sid;
+			$s['register_id']        = (int) $s['register_id'];
+			$s['user_id']            = (int) $s['user_id'];
+			$s['is_open']            = null === $s['closed_at'];
+			$s['by_method']          = $by_shift[ $sid ]['by_method'] ?? [];
+			$s['transaction_count']  = $by_shift[ $sid ]['transaction_count'] ?? 0;
+			$s['tender_total']       = $by_shift[ $sid ]['tender_total'] ?? '0.0000';
+			// variance is a real figure only once a close actually counted
+			// the drawer — an open shift's own DEFAULT 0.0000 column value
+			// would otherwise read as "balanced," which is not a fact
+			// anyone has observed yet.
+			if ( $s['is_open'] ) {
+				$s['variance'] = null;
+			}
+		}
+		unset( $s );
+
+		return $shifts;
+	}
+
 	/** Valuation at FIFO cost — SUM(qty_remaining × unit_cost) per product, from the batches actually on hand right now. */
 	public static function valuation( array $args = [] ): array {
 		global $wpdb;

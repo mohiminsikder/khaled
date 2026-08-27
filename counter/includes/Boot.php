@@ -164,6 +164,7 @@ class Boot {
 		Admin\Screens\Employees::init();
 		Admin\Screens\Roles::init();
 		Admin\Screens\Settings::init();
+		Admin\Screens\RegisterReport::init();
 		Cli::init();
 		Pos\Assets::init();
 	}

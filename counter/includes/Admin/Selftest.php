@@ -220,6 +220,7 @@ class Selftest {
 		$this->test_rollup();
 		$this->test_hourly_rollup();
 		$this->test_trending();
+		$this->test_register_report();
 		$this->test_reports_channel();
 		$this->test_dashboard();
 		$this->test_pos_entry_points();
@@ -8530,6 +8531,143 @@ class Selftest {
 			'test_trending: margin comes from frozen COGS, not a recomputed cost',
 			null !== $product_a_row && 0 === bccomp( $product_a_row['cogs'], '20.0000', 4 ),
 			wp_json_encode( [ 'cogs' => $product_a_row['cogs'] ?? null, 'expected' => '20.0000' ] )
+		);
+	}
+
+	// -- D3: test_register_report() -- 4 checks ----------------------------------------
+
+	private function test_register_report(): void {
+		global $wpdb;
+		$tenders_table = Install::table( 'tenders' );
+
+		// The site's own real default location, not a dedicated fixture one
+		// — this test's fixtures (register, shift, tenders) all clean up by
+		// exact id, so there is no reason to risk the location-cleanup
+		// fragility test_trending()/test_hourly_rollup() both hit.
+		$location_id = \Counter\Stock\Locations::default_id();
+
+		$register_a = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Register Report A ' . substr( wp_generate_password( 6, false ), 0, 6 ), 'location_id' => $location_id ]
+		);
+		$this->register_fixture_ids[] = $register_a;
+		$register_b = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Register Report B ' . substr( wp_generate_password( 6, false ), 0, 6 ), 'location_id' => $location_id ]
+		);
+		$this->register_fixture_ids[] = $register_b;
+
+		$shift_a = \Counter\Pos\Shifts::open( $register_a, get_current_user_id(), '500.0000' );
+		$shift_b = \Counter\Pos\Shifts::open( $register_b, get_current_user_id(), '0.0000' );
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture Register Report Product' );
+		$product->set_regular_price( '100.00' );
+		$product->set_manage_stock( true );
+		$product->set_stock_quantity( 0 );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save();
+		$this->product_fixture_ids[] = $product->get_id();
+
+		$context = [ 'register_id' => $register_a, 'shift_id' => $shift_a, 'location_id' => $location_id, 'operator_id' => get_current_user_id() ];
+
+		$order_1 = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product, 'qty' => 1, 'subtotal' => '100.00', 'total' => '100.00' ] ],
+			$context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-REGREP-1-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order_1->get_id();
+		// 'card'/'rocket', not 'cash'/'bkash' — those two payment accounts
+		// are inactive on this install (docs/BLOCKED.md's own long-standing
+		// entry); Tenders::record() refuses any method with no active
+		// account, and using them here would fail this fixture the same
+		// silent way, not exercise register_report() at all.
+		$tender_result_1 = \Counter\Pos\Tenders::record( $order_1, [ [ 'method' => 'card', 'amount' => '100.00' ] ], $shift_a );
+
+		$order_2 = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product, 'qty' => 1, 'subtotal' => '100.00', 'total' => '100.00' ] ],
+			$context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-REGREP-2-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order_2->get_id();
+		$tender_result_2 = \Counter\Pos\Tenders::record( $order_2, [ [ 'method' => 'rocket', 'amount' => '100.00' ] ], $shift_a );
+
+		$order_3 = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product, 'qty' => 1, 'subtotal' => '100.00', 'total' => '100.00' ] ],
+			$context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-REGREP-3-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order_3->get_id();
+		$tender_result_3 = \Counter\Pos\Tenders::record( $order_3, [ [ 'method' => 'card', 'amount' => '100.00' ] ], $shift_a );
+
+		// Close shift A with a counted_cash deliberately off from what the
+		// drawer should hold — a known, non-zero variance to check against.
+		// compute_expected_cash() (close()'s own pure pre-computation), not
+		// the shift row's own 'expected_cash' column — that column is only
+		// EVER written BY close() itself, so reading it beforehand is
+		// reading a stale default, not what close() is about to compute.
+		$expected_cash_before_close = \Counter\Pos\Shifts::compute_expected_cash( $shift_a, '500.0000' );
+		$counted_cash                = bcadd( $expected_cash_before_close, '15.0000', 4 ); // ৳15 over
+		\Counter\Pos\Shifts::close( $shift_a, $counted_cash );
+		$closed_shift = \Counter\Pos\Shifts::get( $shift_a );
+
+		$report = \Counter\Reports\Reports::register_report( [ 'location_id' => $location_id ] );
+		$row_a  = null;
+		$row_b  = null;
+		foreach ( $report as $r ) {
+			if ( (int) $r['id'] === $shift_a ) {
+				$row_a = $r;
+			}
+			if ( (int) $r['id'] === $shift_b ) {
+				$row_b = $r;
+			}
+		}
+
+		// 1. Per-method totals match the tender rows.
+		$expected_by_method = [];
+		$tender_rows = $wpdb->get_results(
+			$wpdb->prepare( "SELECT method, SUM(amount) AS amount, COUNT(*) AS count FROM {$tenders_table} WHERE shift_id = %d AND is_change = 0 GROUP BY method", $shift_a ),
+			ARRAY_A
+		);
+		foreach ( $tender_rows as $tr ) {
+			$expected_by_method[ $tr['method'] ] = [ 'amount' => wc_format_decimal( $tr['amount'], 4 ), 'count' => (int) $tr['count'] ];
+		}
+		$tenders_recorded = ! is_wp_error( $tender_result_1 ) && ! is_wp_error( $tender_result_2 ) && ! is_wp_error( $tender_result_3 );
+		$methods_match    = $tenders_recorded && null !== $row_a && ! empty( $expected_by_method );
+		foreach ( $expected_by_method as $method => $expected ) {
+			$actual = $row_a['by_method'][ $method ] ?? null;
+			if ( ! $actual || 0 !== bccomp( $actual['amount'], $expected['amount'], 4 ) || (int) $actual['count'] !== $expected['count'] ) {
+				$methods_match = false;
+			}
+		}
+		$this->check(
+			'test_register_report: per-method totals match the tender rows',
+			$methods_match,
+			wp_json_encode(
+				[
+					'expected'         => $expected_by_method,
+					'actual'           => $row_a['by_method'] ?? null,
+					'tenders_recorded' => $tenders_recorded,
+					'tender_errors'    => array_values( array_filter( array_map( static fn( $r ) => is_wp_error( $r ) ? $r->get_error_message() : null, [ $tender_result_1, $tender_result_2, $tender_result_3 ] ) ) ),
+				]
+			)
+		);
+
+		// 2. Counts match transactions.
+		$expected_count = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$tenders_table} WHERE shift_id = %d AND is_change = 0", $shift_a ) );
+		$this->check(
+			'test_register_report: counts match transactions',
+			null !== $row_a && (int) $row_a['transaction_count'] === $expected_count && 3 === $expected_count,
+			wp_json_encode( [ 'expected' => $expected_count, 'actual' => $row_a['transaction_count'] ?? null ] )
+		);
+
+		// 3. Variance matches what close stored.
+		$this->check(
+			'test_register_report: variance matches what close stored',
+			null !== $row_a && null !== $closed_shift && 0 === bccomp( $row_a['variance'], $closed_shift['variance'], 4 ) && 0 === bccomp( $row_a['variance'], '15.0000', 4 ),
+			wp_json_encode( [ 'report_variance' => $row_a['variance'] ?? null, 'stored_variance' => $closed_shift['variance'] ?? null ] )
+		);
+
+		// 4. An open shift appears as open.
+		$this->check(
+			'test_register_report: an open shift appears as open',
+			null !== $row_b && true === $row_b['is_open'] && null === $row_b['variance'],
+			wp_json_encode( [ 'is_open' => $row_b['is_open'] ?? null, 'variance' => $row_b['variance'] ?? 'missing key' ] )
 		);
 	}
 
