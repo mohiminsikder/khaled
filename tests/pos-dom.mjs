@@ -313,6 +313,40 @@ assert(!!finalizeCall && !freshSaleCall, `B6: paying a resumed document calls /s
 assert(!!finalizeBody && 555 === finalizeBody.order_id, `B6: finalize posts the document's own order_id (body: ${JSON.stringify(finalizeBody)})`);
 assert(0 === (await cart()) && (await p.locator('.cntr-document-banner').count()) === 0, 'B6: finalizing clears the cart and the document banner');
 
+// -- B7: the ⊖ expense modal and the ↶ sell-return lookup.
+await p.click('#cntr-expense-btn'); await p.waitForTimeout(400);
+await p.selectOption('#cntr-expense-category', '1');
+await p.selectOption('#cntr-expense-account', '1');
+await p.fill('#cntr-expense-amount', '100');
+await p.fill('#cntr-expense-tax', '25');
+const dueText = (await p.textContent('#cntr-expense-due').catch(() => '')) || '';
+assert(dueText.includes('125.00'), `B7: the running due is amount + tax, live (text: "${dueText}")`);
+
+await p.evaluate(() => { window.__req.length = 0; });
+await p.click('#cntr-expense-submit'); await p.waitForTimeout(400);
+const expenseCall = await p.evaluate(() => (window.__req || []).find((r) => r.url.includes('/expense')));
+let expenseBody = null;
+try { expenseBody = expenseCall ? JSON.parse(expenseCall.opts.body) : null; } catch (e) { expenseBody = null; }
+assert(!!expenseBody && 1 === expenseBody.category_id && 1 === expenseBody.account_id && '125.0000' === expenseBody.amount, `B7: the expense modal posts category/account/combined amount (body: ${JSON.stringify(expenseBody)})`);
+assert(await p.isHidden('#cntr-expense'), 'B7: the expense modal closes after posting');
+
+// The X-report's own expense total moves — pos-harness.html's mock bumps
+// it from ৳50 to ৳175 once window.__expensePosted flips true.
+await p.click('#cntr-xreport-btn'); await p.waitForTimeout(400);
+const xReportAfterExpense = ((await p.textContent('#cntr-xreport')) || '').replace(/\s+/g, ' ').trim();
+assert(xReportAfterExpense.includes('175.00'), `B7: the X-report's expense total moves after posting one (text: "${xReportAfterExpense}")`);
+await p.click('#cntr-xreport-close'); await p.waitForTimeout(300);
+
+// An invoice lookup loads the right sale — same F9 return flow, reached
+// through the new ↶ toolbar icon rather than only the F9 key.
+await p.click('#cntr-sell-return-btn'); await p.waitForTimeout(400);
+assert(await p.isVisible('#cntr-return-receipt-no'), 'B7: ↶ opens the same receipt-lookup step F9 already had');
+await p.fill('#cntr-return-receipt-no', 'R1-000042-0003');
+await p.click('#cntr-return-receipt-find'); await p.waitForTimeout(400);
+const returnPickerText = ((await p.textContent('#cntr-return')) || '').replace(/\s+/g, ' ').trim();
+assert(returnPickerText.includes('Basmati Rice 1kg'), `B7: the invoice lookup loads the right sale's own lines (text: "${returnPickerText}")`);
+await p.click('#cntr-return-cancel'); await p.waitForTimeout(300);
+
 await b.close();
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -229,6 +229,26 @@
 			resumeDocumentConfirm: 'This will replace the current cart with this document. Continue?',
 			documentSaveFailed: 'Could not save this document — try again.',
 			finalizeOfflineFailed: 'Could not reach the server to finalize this sale — try again once online.',
+
+			expenseAria: 'Record an expense',
+			expenseTitle: 'Record an expense',
+			expenseLocationLabel: 'Location',
+			expenseCategoryLabel: 'Category',
+			expenseReferenceLabel: 'Reference (blank = auto)',
+			expenseDateLabel: 'Date',
+			expenseForLabel: 'Expense for',
+			expenseForShop: 'The shop',
+			expenseForPos: 'This till',
+			expenseForOnline: 'Online',
+			expenseAmountLabel: 'Amount (৳)',
+			expenseTaxLabel: 'Tax (৳)',
+			expenseAccountLabel: 'Paid from',
+			expenseDueLabel: 'Total',
+			expenseSubmitBtn: 'Record expense',
+			expenseFailed: 'Could not record this expense — try again.',
+			expenseValidation: 'A category, an account, and a positive amount are required.',
+
+			sellReturnAria: 'Look up a sale to return',
 		},
 		CFG.strings || {}
 	);
@@ -1909,6 +1929,157 @@
 		if (cancelBtn) cancelBtn.addEventListener('click', closeDocumentsList);
 	}
 
+	// -- B7: record-an-expense modal (⊖) -------------------------------------------
+	//
+	// "The cashier never leaves the till for the two things that interrupt a
+	// shift" — a thin POST to /expense (Rest\Expense::create(), which itself
+	// is a thin wrapper over the already-existing Reports\Expenses::create()
+	// plus the cash-drawer tie-in that moves the X-report's own expense
+	// total). Tax is never sent as its own field — Reports\Expenses::create()
+	// has no such parameter — it is folded into the single 'amount' posted,
+	// same as the "running due" shown here is just amount+tax, live.
+
+	let expenseState = null; // {}
+
+	function todayYmd() {
+		const d = new Date();
+		const pad = (n) => String(n).padStart(2, '0');
+		return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+	}
+
+	function openExpenseModal() {
+		expenseState = {};
+		renderExpenseModal();
+	}
+
+	function closeExpenseModal() {
+		expenseState = null;
+		const root = document.getElementById('cntr-expense');
+		if (root) {
+			root.hidden = true;
+			root.innerHTML = '';
+		}
+		restoreFocus();
+	}
+
+	function expenseDue() {
+		const amount = parseFloat(document.getElementById('cntr-expense-amount')?.value) || 0;
+		const tax = parseFloat(document.getElementById('cntr-expense-tax')?.value) || 0;
+		return amount + tax;
+	}
+
+	async function submitExpense() {
+		if (!expenseState) return;
+		const categoryId = parseInt(document.getElementById('cntr-expense-category')?.value, 10) || 0;
+		const accountId = parseInt(document.getElementById('cntr-expense-account')?.value, 10) || 0;
+		const amount = parseFloat(document.getElementById('cntr-expense-amount')?.value) || 0;
+		const tax = parseFloat(document.getElementById('cntr-expense-tax')?.value) || 0;
+		const warn = document.getElementById('cntr-expense-warning');
+		if (!categoryId || !accountId || amount <= 0) {
+			if (warn) {
+				warn.hidden = false;
+				warn.textContent = STRINGS.expenseValidation;
+			}
+			return;
+		}
+		const body = {
+			location_id: parseInt(document.getElementById('cntr-expense-location')?.value, 10) || CFG.defaultLocationId,
+			category_id: categoryId,
+			account_id: accountId,
+			amount: (amount + tax).toFixed(4),
+			spent_on: document.getElementById('cntr-expense-date')?.value || todayYmd(),
+			channel: document.getElementById('cntr-expense-channel')?.value || '',
+			note: document.getElementById('cntr-expense-reference')?.value || '',
+			shift_id: CFG.shiftId || 0,
+		};
+		try {
+			const res = await fetch(`${CFG.restUrl}/expense`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'X-CNTR-Register': String(CFG.registerId || '') },
+				credentials: 'same-origin',
+				body: JSON.stringify(body),
+			});
+			if (!res.ok) throw new Error('bad status');
+		} catch (e) {
+			if (warn) {
+				warn.hidden = false;
+				warn.textContent = STRINGS.expenseFailed;
+			}
+			return;
+		}
+		closeExpenseModal();
+	}
+
+	function renderExpenseModal() {
+		const root = document.getElementById('cntr-expense');
+		if (!root || !expenseState) return;
+		const locations = CFG.expenseLocations || [];
+		const categories = CFG.expenseCategories || [];
+		const accounts = CFG.expenseAccounts || [];
+		root.innerHTML = `
+			<div class="cntr-modal-box">
+				<h2>${STRINGS.expenseTitle}</h2>
+				<label>${STRINGS.expenseLocationLabel}
+					<select id="cntr-expense-location">
+						${locations.map((l) => `<option value="${l.id}"${l.id === CFG.defaultLocationId ? ' selected' : ''}>${escapeHtml(l.name)}</option>`).join('')}
+					</select>
+				</label>
+				<label>${STRINGS.expenseCategoryLabel}
+					<select id="cntr-expense-category">
+						${categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+					</select>
+				</label>
+				<label>${STRINGS.expenseReferenceLabel}
+					<input id="cntr-expense-reference" type="text">
+				</label>
+				<label>${STRINGS.expenseDateLabel}
+					<input id="cntr-expense-date" type="date" value="${todayYmd()}">
+				</label>
+				<label>${STRINGS.expenseForLabel}
+					<select id="cntr-expense-channel">
+						<option value="">${STRINGS.expenseForShop}</option>
+						<option value="pos">${STRINGS.expenseForPos}</option>
+						<option value="online">${STRINGS.expenseForOnline}</option>
+					</select>
+				</label>
+				<label>${STRINGS.expenseAmountLabel}
+					<input id="cntr-expense-amount" type="text" inputmode="decimal" value="0.00">
+				</label>
+				<label>${STRINGS.expenseTaxLabel}
+					<input id="cntr-expense-tax" type="text" inputmode="decimal" value="0.00">
+				</label>
+				<label>${STRINGS.expenseAccountLabel}
+					<select id="cntr-expense-account">
+						${accounts.map((a) => `<option value="${a.id}">${escapeHtml(a.name)}</option>`).join('')}
+					</select>
+				</label>
+				<p id="cntr-expense-due">${STRINGS.expenseDueLabel}: ${formatMoney(0)}</p>
+				<span id="cntr-expense-warning" class="cntr-inline-warning" hidden></span>
+				<div class="cntr-modal-actions">
+					<button type="button" id="cntr-expense-submit">${STRINGS.expenseSubmitBtn}</button>
+					<button type="button" id="cntr-expense-cancel">${STRINGS.cancelBtn}</button>
+				</div>
+			</div>
+		`;
+		root.hidden = false;
+		const updateDue = () => {
+			const dueEl = document.getElementById('cntr-expense-due');
+			if (dueEl) dueEl.textContent = `${STRINGS.expenseDueLabel}: ${formatMoney(expenseDue())}`;
+		};
+		const amountInput = document.getElementById('cntr-expense-amount');
+		if (amountInput) {
+			amountInput.focus();
+			amountInput.addEventListener('input', updateDue);
+		}
+		const taxInput = document.getElementById('cntr-expense-tax');
+		if (taxInput) taxInput.addEventListener('input', updateDue);
+		submitOnEnter(amountInput, submitExpense);
+		const submitBtn = document.getElementById('cntr-expense-submit');
+		if (submitBtn) submitBtn.addEventListener('click', submitExpense);
+		const cancelBtn = document.getElementById('cntr-expense-cancel');
+		if (cancelBtn) cancelBtn.addEventListener('click', closeExpenseModal);
+	}
+
 	let heldListState = null; // {}
 
 	/** F8 now opens a LIST — a LIFO pop() only ever reached the most recently parked ticket. */
@@ -3505,6 +3676,8 @@
 							? `<button type="button" id="cntr-close-register-btn" class="cntr-toolbar-icon" aria-label="${STRINGS.closeRegisterAria}" title="${STRINGS.closeRegisterAria}">&#10062;</button>`
 							: ''
 					}
+					<button type="button" id="cntr-expense-btn" class="cntr-toolbar-icon" aria-label="${STRINGS.expenseAria}" title="${STRINGS.expenseAria}">&#8854;</button>
+					<button type="button" id="cntr-sell-return-btn" class="cntr-toolbar-icon" aria-label="${STRINGS.sellReturnAria}" title="${STRINGS.sellReturnAria}">&#8630;</button>
 				</header>
 				<div class="cntr-pos-main">
 					<section class="cntr-panel cntr-panel-customer">
@@ -3675,6 +3848,7 @@
 			<div id="cntr-xreport" class="cntr-modal" hidden></div>
 			<div id="cntr-close-register" class="cntr-modal" hidden></div>
 			<div id="cntr-documents" class="cntr-modal" hidden></div>
+			<div id="cntr-expense" class="cntr-modal" hidden></div>
 		`;
 
 		const search = document.getElementById('cntr-search');
@@ -3779,6 +3953,13 @@
 				render();
 			});
 		}
+
+		// B7 — ⊖ opens the expense modal; ↶ reuses F9's own return flow
+		// verbatim (a visible toolbar entry point into it, nothing new).
+		const expenseBtn = document.getElementById('cntr-expense-btn');
+		if (expenseBtn) expenseBtn.addEventListener('click', openExpenseModal);
+		const sellReturnBtn = document.getElementById('cntr-sell-return-btn');
+		if (sellReturnBtn) sellReturnBtn.addEventListener('click', openReturnFlow);
 
 		// B1 — the tile grid: a category chip narrows gridProducts(), a tile
 		// tap adds 1 unit the same way a search-result click does.

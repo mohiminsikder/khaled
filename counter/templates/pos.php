@@ -68,6 +68,20 @@ $bootstrap = [
 		static fn( $g ) => [ 'id' => (int) $g['id'], 'name' => (string) $g['name'], 'code' => (string) $g['code'] ],
 		\Counter\Pricing\Groups::all( 'active' )
 	),
+	// B7 — the expense modal's own dropdowns. Same "hand-curated, rarely
+	// changes mid-shift" reasoning as units/priceGroups above.
+	'expenseCategories'    => array_map(
+		static fn( $c ) => [ 'id' => (int) $c['id'], 'name' => (string) $c['name'] ],
+		\Counter\Reports\Expenses::categories( 'active' )
+	),
+	'expenseLocations'     => array_map(
+		static fn( $l ) => [ 'id' => (int) $l['id'], 'name' => (string) $l['name'] ],
+		\Counter\Stock\Locations::all( 'active' )
+	),
+	'expenseAccounts'      => array_map(
+		static fn( $a ) => [ 'id' => (int) $a['id'], 'name' => (string) $a['name'], 'kind' => (string) $a['kind'] ],
+		\Counter\Pos\Accounts::all( 'active' )
+	),
 	// U2 (COUNTERFRONTEND.md) — "a cashier should be able to run the
 	// terminal entirely in Bengali" (P8.3), never actually possible before
 	// this: pos.js had no translation mechanism at all. Every key here is
@@ -266,6 +280,26 @@ $bootstrap = [
 		'resumeDocumentConfirm'    => __( 'This will replace the current cart with this document. Continue?', 'counter' ),
 		'documentSaveFailed'       => __( 'Could not save this document — try again.', 'counter' ),
 		'finalizeOfflineFailed'    => __( 'Could not reach the server to finalize this sale — try again once online.', 'counter' ),
+
+		'expenseAria'              => __( 'Record an expense', 'counter' ),
+		'expenseTitle'             => __( 'Record an expense', 'counter' ),
+		'expenseLocationLabel'     => __( 'Location', 'counter' ),
+		'expenseCategoryLabel'     => __( 'Category', 'counter' ),
+		'expenseReferenceLabel'    => __( 'Reference (blank = auto)', 'counter' ),
+		'expenseDateLabel'         => __( 'Date', 'counter' ),
+		'expenseForLabel'          => __( 'Expense for', 'counter' ),
+		'expenseForShop'           => __( 'The shop', 'counter' ),
+		'expenseForPos'            => __( 'This till', 'counter' ),
+		'expenseForOnline'         => __( 'Online', 'counter' ),
+		'expenseAmountLabel'       => __( 'Amount (৳)', 'counter' ),
+		'expenseTaxLabel'          => __( 'Tax (৳)', 'counter' ),
+		'expenseAccountLabel'      => __( 'Paid from', 'counter' ),
+		'expenseDueLabel'          => __( 'Total', 'counter' ),
+		'expenseSubmitBtn'         => __( 'Record expense', 'counter' ),
+		'expenseFailed'            => __( 'Could not record this expense — try again.', 'counter' ),
+		'expenseValidation'        => __( 'A category, an account, and a positive amount are required.', 'counter' ),
+
+		'sellReturnAria'           => __( 'Look up a sale to return', 'counter' ),
 	],
 ];
 

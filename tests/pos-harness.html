@@ -29,6 +29,17 @@ window.CNTR = {
   priceGroups: [
     { id: 1, name: 'Retail', code: 'retail' },
     { id: 2, name: 'Wholesale', code: 'wholesale' }
+  ],
+  expenseCategories: [
+    { id: 1, name: 'Tea' },
+    { id: 2, name: 'Transport' }
+  ],
+  expenseLocations: [
+    { id: 1, name: 'Main Shop' }
+  ],
+  expenseAccounts: [
+    { id: 1, name: 'Cash Drawer', kind: 'cash' },
+    { id: 5, name: 'Bank', kind: 'bank' }
   ]
 };
 
@@ -60,9 +71,15 @@ const CUSTOMER = {
 };
 
 window.__req = [];
+window.__expensePosted = false; // B7 — /shift/x-report's own mocked expense_total moves once this flips true
 window.fetch = async (url, opts = {}) => {
   const u = String(url); window.__req.push({ url: u, opts });
   const J = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { 'Content-Type': 'application/json' } });
+  if (u.includes('/expense')) { window.__expensePosted = true; return J({ expense_id: 999 }); }
+  if (u.match(/\/order-lookup/)) return J({
+    order_id: 8801, receipt_no: 'R1-000042-0003',
+    lines: [{ item_id: 501, name: 'Basmati Rice 1kg', remaining_qty: 2 }]
+  });
   if (u.includes('/shift/current')) return J({ shift: { id: 42, register_id: 1, opened_at: '2026-08-26 09:00:00' } });
   if (u.includes('/catalog'))       return J({ cursor: 7, changed: CATALOG, removed: [] });
   if (u.includes('/customers/lookup')) return J([{ phone_norm:'8801711223344', customer_id:44, display_name:'Karim Uddin', last_order_at:'2026-08-19 18:22:00' }]);
@@ -87,10 +104,10 @@ window.fetch = async (url, opts = {}) => {
     sales_total: '2400.0000',
     refund_by_method: [{ method: 'cash', total: '100.0000' }],
     refunds_total: '100.0000',
-    expense_by_method: [{ method: 'cash', total: '50.0000' }],
-    expense_total: '50.0000',
-    expected_cash: '2250.0000',
-    formula: { opening: '500.0000', cash_sale: '1900.0000', cash_refund: '100.0000', cash_expense: '50.0000' },
+    expense_by_method: [{ method: 'cash', total: window.__expensePosted ? '175.0000' : '50.0000' }],
+    expense_total: window.__expensePosted ? '175.0000' : '50.0000',
+    expected_cash: window.__expensePosted ? '2125.0000' : '2250.0000',
+    formula: { opening: '500.0000', cash_sale: '1900.0000', cash_refund: '100.0000', cash_expense: window.__expensePosted ? '175.0000' : '50.0000' },
     products_by_sku: [{ sku: 'TEST-WIDGET-1', name: 'Test Widget', qty: '3', total: '300.0000' }]
   });
   if (u.includes('/shift/close')) return J({

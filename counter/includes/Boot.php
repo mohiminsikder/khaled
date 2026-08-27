@@ -122,6 +122,7 @@ class Boot {
 		Rest\Customer::init();
 		Rest\Sale::init();
 		Rest\Shift::init();
+		Rest\Expense::init();
 		Rest\Returns::init();
 		Rest\OrderLookup::init();
 		Rest\Perf::init();
