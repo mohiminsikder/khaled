@@ -54,7 +54,7 @@ class Menu {
 		],
 		'admin'       => [
 			'label' => 'Admin',
-			'slugs' => [ 'counter-roles', 'counter-health', 'counter-perf', 'counter-outbox-failures', 'counter-oversell-log', 'counter-labels' ],
+			'slugs' => [ 'counter-settings', 'counter-roles', 'counter-health', 'counter-perf', 'counter-outbox-failures', 'counter-oversell-log', 'counter-labels' ],
 		],
 	];
 

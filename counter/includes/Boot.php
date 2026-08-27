@@ -162,6 +162,7 @@ class Boot {
 		Admin\Screens\Stocktake::init();
 		Admin\Screens\Employees::init();
 		Admin\Screens\Roles::init();
+		Admin\Screens\Settings::init();
 		Cli::init();
 		Pos\Assets::init();
 	}

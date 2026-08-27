@@ -184,6 +184,7 @@ class Selftest {
 		$this->test_sales_screen();
 		$this->test_stock_screens();
 		$this->test_roles_screen();
+		$this->test_settings_screen();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -4125,6 +4126,81 @@ class Selftest {
 		foreach ( $restore_audit as $r ) {
 			$wpdb->delete( $audit_table, [ 'id' => (int) $r['id'] ] );
 		}
+	}
+
+	// -- C7: test_settings_screen() -- 4 checks ----------------------------------------
+
+	/**
+	 * Touches real, live settings (shop.name, vat.rate, pos.discount_ceiling_pct) —
+	 * every value this test writes is captured first and restored at the end,
+	 * success or failure, the same discipline test_roles_screen() uses for a
+	 * real WP role.
+	 */
+	private function test_settings_screen(): void {
+		global $wpdb;
+		$screen = '\Counter\Admin\Screens\Settings';
+
+		// 1. A saved value round-trips.
+		$original_name = \Counter\Settings::get( 'shop.name' );
+		$new_name      = 'Counter Selftest Fixture Shop Name ' . substr( wp_generate_password( 6, false ), 0, 6 );
+		$save_result   = $screen::save( 'shop.name', $new_name );
+		$this->check(
+			'test_settings_screen: a saved value round-trips',
+			! is_wp_error( $save_result ) && $new_name === \Counter\Settings::get( 'shop.name' ),
+			wp_json_encode( [ 'saved' => \Counter\Settings::get( 'shop.name' ) ] )
+		);
+		// Restore via the model directly, not save() — save() validates
+		// 'required', and would refuse to put back an original value that
+		// (on a fresh/unconfigured install) is itself the declared empty
+		// default. Found live: this left a fixture shop name permanently
+		// stuck in production settings the first time this test ran.
+		\Counter\Settings::set( 'shop.name', $original_name );
+
+		// 2. An invalid value is refused with a reason.
+		$original_vat_rate = \Counter\Settings::get( 'vat.rate' );
+		$invalid_result     = $screen::save( 'vat.rate', '150' );
+		$this->check(
+			'test_settings_screen: an invalid value is refused with a reason',
+			is_wp_error( $invalid_result ) && '' !== $invalid_result->get_error_message()
+				&& (float) $original_vat_rate === (float) \Counter\Settings::get( 'vat.rate' ),
+			is_wp_error( $invalid_result ) ? $invalid_result->get_error_message() : wp_json_encode( $invalid_result )
+		);
+
+		// 3. The screen requires cntr_manage_settings.
+		$low_email        = 'cntr-selftest-settings-low-' . wp_generate_password( 10, false ) . '@example.invalid';
+		$low_id           = wc_create_new_customer( $low_email, '', wp_generate_password( 16 ) );
+		$admin_ids        = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		$can_low          = null;
+		if ( ! is_wp_error( $low_id ) ) {
+			( new \WP_User( $low_id ) )->set_role( \Counter\Capabilities::ROLE_CASHIER );
+			wp_set_current_user( (int) $low_id );
+			$can_low = current_user_can( 'cntr_manage_settings' );
+			if ( ! empty( $admin_ids ) ) {
+				wp_set_current_user( (int) $admin_ids[0] );
+			}
+			wp_delete_user( (int) $low_id );
+		}
+		$this->check(
+			'test_settings_screen: the screen requires cntr_manage_settings',
+			! is_wp_error( $low_id ) && false === $can_low && current_user_can( 'cntr_manage_settings' ),
+			wp_json_encode( [ 'low_user_created' => ! is_wp_error( $low_id ), 'cashier_can_manage_settings' => $can_low ] )
+		);
+
+		// 4. Changing a POS key bumps the catalogue revision where the
+		// terminal needs to notice — peek the counter (never call
+		// Db::next_seq() itself just to read it, that would consume a
+		// number) before and after.
+		$counters_table       = Install::table( 'counters' );
+		$original_ceiling     = \Counter\Settings::get( 'pos.discount_ceiling_pct' );
+		$rev_before           = (int) $wpdb->get_var( $wpdb->prepare( "SELECT value FROM {$counters_table} WHERE name = %s", 'catalog_rev' ) );
+		$pos_save_result      = $screen::save( 'pos.discount_ceiling_pct', '12.5' );
+		$rev_after            = (int) $wpdb->get_var( $wpdb->prepare( "SELECT value FROM {$counters_table} WHERE name = %s", 'catalog_rev' ) );
+		$this->check(
+			'test_settings_screen: changing a POS key bumps the catalogue revision',
+			! is_wp_error( $pos_save_result ) && $rev_after > $rev_before,
+			wp_json_encode( [ 'rev_before' => $rev_before, 'rev_after' => $rev_after ] )
+		);
+		\Counter\Settings::set( 'pos.discount_ceiling_pct', $original_ceiling );
 	}
 
 	/**
