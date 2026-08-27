@@ -177,6 +177,7 @@ class Selftest {
 		$this->test_terminal_assets();
 		$this->test_pos_wiring();
 		$this->test_quick_add_listing();
+		$this->test_quick_add();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -3237,6 +3238,62 @@ class Selftest {
 			'test_quick_add_listing: a quick-added product whose category, tax class and cost are all set is reported complete',
 			isset( $by_id[ $complete_id ] ) && empty( $by_id[ $complete_id ]['missing'] ),
 			wp_json_encode( $by_id[ $complete_id ] ?? null )
+		);
+	}
+
+	// -- B8: test_quick_add() -- 3 checks ----------------------------------------------
+
+	private function test_quick_add(): void {
+		$main_id = \Counter\Stock\Locations::default_id();
+
+		// 1. A missing price is refused — teardown defect #13's whole point:
+		// Terminal::quick_add() must never silently accept a product with no
+		// selling price.
+		$missing_price = \Counter\Pos\Terminal::quick_add(
+			[ 'name' => 'Counter Selftest Fixture Quick-Add No Price' ],
+			$main_id,
+			get_current_user_id()
+		);
+		$this->check(
+			'test_quick_add: a missing price is refused',
+			isset( $missing_price['error'] ) && ! isset( $missing_price['product_id'] ),
+			wp_json_encode( $missing_price )
+		);
+
+		// 2. The created product carries the given price.
+		$result     = \Counter\Pos\Terminal::quick_add(
+			[ 'name' => 'Counter Selftest Fixture Quick-Add Priced', 'price' => '199.50' ],
+			$main_id,
+			get_current_user_id()
+		);
+		$product_id = (int) ( $result['product_id'] ?? 0 );
+		if ( $product_id ) {
+			$product = wc_get_product( $product_id );
+			$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+			$product->save();
+			$this->product_fixture_ids[] = $product_id;
+		}
+		$created_price = $product_id ? wc_get_product( $product_id )->get_regular_price() : null;
+		$this->check(
+			'test_quick_add: the created product carries the given price',
+			$product_id > 0 && null !== $created_price && 0 === bccomp( wc_format_decimal( $created_price, 4 ), '199.5000', 4 ),
+			wp_json_encode( [ 'result' => $result, 'price' => $created_price ] )
+		);
+
+		// 3. It appears in the Health incomplete list until category and
+		// cost are set — same criteria test_quick_add_listing() (F7)
+		// established; this fixture (no category_id, no batch received) has
+		// neither, so it must be flagged missing both right after
+		// quick_add() itself, no further setup needed.
+		$rows  = \Counter\Admin\Health::quick_added_products();
+		$by_id = [];
+		foreach ( $rows as $r ) {
+			$by_id[ $r['product_id'] ] = $r;
+		}
+		$this->check(
+			'test_quick_add: it appears in the Health incomplete list until category and cost are set',
+			$product_id > 0 && isset( $by_id[ $product_id ] ) && ! empty( $by_id[ $product_id ]['missing'] ),
+			wp_json_encode( $by_id[ $product_id ] ?? null )
 		);
 	}
 

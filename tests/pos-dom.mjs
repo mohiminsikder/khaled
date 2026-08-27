@@ -347,6 +347,22 @@ const returnPickerText = ((await p.textContent('#cntr-return')) || '').replace(/
 assert(returnPickerText.includes('Basmati Rice 1kg'), `B7: the invoice lookup loads the right sale's own lines (text: "${returnPickerText}")`);
 await p.click('#cntr-return-cancel'); await p.waitForTimeout(300);
 
+// -- B8: quick-add gains category and alert quantity (backend is the
+// named self-test — Terminal::test_quick_add(), reflection-probed
+// separately; this just confirms the two new fields actually reach the
+// POST body from the form).
+await p.keyboard.press('F5'); await p.waitForTimeout(300);
+await p.fill('#cntr-quick-add-name', 'Probe Categorised Item');
+await p.fill('#cntr-quick-add-price', '80');
+await p.selectOption('#cntr-quick-add-category', '13');
+await p.fill('#cntr-quick-add-alert-qty', '5');
+await p.evaluate(() => { window.__req.length = 0; });
+await p.click('#cntr-quick-add-submit'); await p.waitForTimeout(400);
+const quickAddCall = await p.evaluate(() => (window.__req || []).find((r) => r.url.includes('/quick-add')));
+let quickAddBody = null;
+try { quickAddBody = quickAddCall ? JSON.parse(quickAddCall.opts.body) : null; } catch (e) { quickAddBody = null; }
+assert(!!quickAddBody && 13 === quickAddBody.category_id && '5' === quickAddBody.alert_qty, `B8: quick-add posts the chosen category and alert quantity (body: ${JSON.stringify(quickAddBody)})`);
+
 await b.close();
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

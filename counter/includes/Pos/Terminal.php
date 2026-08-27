@@ -71,6 +71,22 @@ class Terminal {
 						'type'              => 'integer',
 						'sanitize_callback' => 'absint',
 					],
+					// B8 — teardown defect #13 is about the PRICE field
+					// (already required above, long before this task); this
+					// pair is the remaining gap the till's own quick-add form
+					// still had — both optional, same "an omission behaves
+					// exactly as before this task" posture as unit_id.
+					'category_id' => [
+						'required'          => false,
+						'type'              => 'integer',
+						'sanitize_callback' => 'absint',
+					],
+					'alert_qty'   => [
+						'required'          => false,
+						'type'              => 'string',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && (float) $v >= 0,
+						'sanitize_callback' => 'sanitize_text_field',
+					],
 				],
 			]
 		);
@@ -80,11 +96,13 @@ class Terminal {
 		$location_id = (int) $req->get_param( 'location_id' ) ?: Locations::default_id();
 		$result      = self::quick_add(
 			[
-				'name'    => (string) $req->get_param( 'name' ),
-				'price'   => (string) $req->get_param( 'price' ),
-				'barcode' => (string) $req->get_param( 'barcode' ),
-				'qty'     => (string) $req->get_param( 'qty' ),
-				'unit_id' => (int) $req->get_param( 'unit_id' ),
+				'name'        => (string) $req->get_param( 'name' ),
+				'price'       => (string) $req->get_param( 'price' ),
+				'barcode'     => (string) $req->get_param( 'barcode' ),
+				'qty'         => (string) $req->get_param( 'qty' ),
+				'unit_id'     => (int) $req->get_param( 'unit_id' ),
+				'category_id' => (int) $req->get_param( 'category_id' ),
+				'alert_qty'   => (string) $req->get_param( 'alert_qty' ),
 			],
 			$location_id,
 			get_current_user_id()
@@ -149,6 +167,23 @@ class Terminal {
 		$product->set_stock_quantity( 0 ); // the ledger move below is the real source of truth
 		$product->set_sku( sanitize_text_field( (string) ( $data['barcode'] ?? '' ) ) );
 		$product->update_meta_data( '_cntr_quick_added', 1 );
+
+		// B8 — category and alert (low-stock) quantity, both optional: an
+		// invalid category id (0, or one that doesn't name a real product_cat
+		// term) never blocks the create, same posture unit_id already has
+		// below — a cashier quick-adding mid-sale must not be refused over a
+		// bad dropdown value somehow reaching the server. Admin\Health's own
+		// quick_added_products() (F7) is what actually surfaces "category
+		// still missing" afterward; this is only ever additive.
+		$category_id = (int) ( $data['category_id'] ?? 0 );
+		if ( $category_id > 0 && term_exists( $category_id, 'product_cat' ) ) {
+			$product->set_category_ids( [ $category_id ] );
+		}
+		$alert_qty = (string) ( $data['alert_qty'] ?? '' );
+		if ( '' !== $alert_qty && is_numeric( $alert_qty ) && (float) $alert_qty >= 0 ) {
+			$product->set_low_stock_amount( (int) $alert_qty );
+		}
+
 		$product->save();
 		$product_id = $product->get_id();
 

@@ -82,6 +82,16 @@ $bootstrap = [
 		static fn( $a ) => [ 'id' => (int) $a['id'], 'name' => (string) $a['name'], 'kind' => (string) $a['kind'] ],
 		\Counter\Pos\Accounts::all( 'active' )
 	),
+	// B8 — the quick-add form's own category picker. WooCommerce's real
+	// product_cat terms, not a Counter-owned list — the same taxonomy every
+	// other product in the shop is already categorised under.
+	'productCategories'    => array_map(
+		static fn( $t ) => [ 'id' => (int) $t->term_id, 'name' => (string) $t->name ],
+		( static function () {
+			$terms = get_terms( [ 'taxonomy' => 'product_cat', 'hide_empty' => false ] );
+			return is_wp_error( $terms ) ? [] : $terms;
+		} )()
+	),
 	// U2 (COUNTERFRONTEND.md) — "a cashier should be able to run the
 	// terminal entirely in Bengali" (P8.3), never actually possible before
 	// this: pos.js had no translation mechanism at all. Every key here is
@@ -190,6 +200,8 @@ $bootstrap = [
 		'addProductBtn'            => __( 'Add product', 'counter' ),
 		'quickAddValidation'       => __( 'A name and a positive price are required.', 'counter' ),
 		'quickAddFailed'           => __( 'Could not add this product — try again.', 'counter' ),
+		'categoryLabel'            => __( 'Category', 'counter' ),
+		'alertQtyLabel'            => __( 'Alert quantity', 'counter' ),
 
 		'heldSalesTitle'           => __( 'Held sales', 'counter' ),
 		'justNow'                  => __( 'just now', 'counter' ),

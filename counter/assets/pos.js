@@ -143,6 +143,8 @@
 			addProductBtn: 'Add product',
 			quickAddValidation: 'A name and a positive price are required.',
 			quickAddFailed: 'Could not add this product — try again.',
+			categoryLabel: 'Category',
+			alertQtyLabel: 'Alert quantity',
 
 			heldSalesTitle: 'Held sales',
 			justNow: 'just now',
@@ -3189,7 +3191,10 @@
 		const barcode = document.getElementById('cntr-quick-add-barcode').value.trim();
 		const unitSelect = document.getElementById('cntr-quick-add-unit');
 		const unitId = unitSelect && unitSelect.value ? parseInt(unitSelect.value, 10) : 0;
+		const categorySelect = document.getElementById('cntr-quick-add-category');
+		const categoryId = categorySelect && categorySelect.value ? parseInt(categorySelect.value, 10) : 0;
 		const qty = document.getElementById('cntr-quick-add-qty').value;
+		const alertQty = document.getElementById('cntr-quick-add-alert-qty').value;
 		const warn = document.getElementById('cntr-quick-add-warning');
 
 		// Client-side, before ever posting — the same rule the endpoint itself
@@ -3203,7 +3208,15 @@
 			return;
 		}
 
-		const result = await submitQuickAdd({ name, price, barcode, qty: qty || '0', unit_id: unitId });
+		const result = await submitQuickAdd({
+			name,
+			price,
+			barcode,
+			qty: qty || '0',
+			unit_id: unitId,
+			category_id: categoryId,
+			alert_qty: alertQty || '',
+		});
 		if (!result || !result.product_id) {
 			// The endpoint's own 422 message (or a network failure), surfaced legibly rather than a silent no-op.
 			if (warn) {
@@ -3250,8 +3263,17 @@
 						${(CFG.units || []).map((u) => `<option value="${u.id}">${escapeHtml(u.name)}</option>`).join('')}
 					</select>
 				</label>
+				<label>${STRINGS.categoryLabel}
+					<select id="cntr-quick-add-category">
+						<option value="">—</option>
+						${(CFG.productCategories || []).map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
+					</select>
+				</label>
 				<label>${STRINGS.openingQtyLabel}
 					<input id="cntr-quick-add-qty" type="text" inputmode="decimal" value="0">
+				</label>
+				<label>${STRINGS.alertQtyLabel}
+					<input id="cntr-quick-add-alert-qty" type="text" inputmode="decimal" value="">
 				</label>
 				<span id="cntr-quick-add-warning" class="cntr-inline-warning" hidden></span>
 				<div class="cntr-modal-actions">
@@ -3263,7 +3285,7 @@
 		root.hidden = false;
 		const nameInput = document.getElementById('cntr-quick-add-name');
 		if (nameInput) nameInput.focus();
-		['cntr-quick-add-name', 'cntr-quick-add-price', 'cntr-quick-add-barcode', 'cntr-quick-add-qty'].forEach((id) =>
+		['cntr-quick-add-name', 'cntr-quick-add-price', 'cntr-quick-add-barcode', 'cntr-quick-add-qty', 'cntr-quick-add-alert-qty'].forEach((id) =>
 			submitOnEnter(document.getElementById(id), submitQuickAddForm)
 		);
 		const submitBtn = document.getElementById('cntr-quick-add-submit');
