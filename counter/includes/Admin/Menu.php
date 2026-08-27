@@ -42,7 +42,7 @@ class Menu {
 		],
 		'purchasing' => [
 			'label' => 'Purchasing',
-			'slugs' => [],
+			'slugs' => [ 'counter-suppliers', 'counter-purchase-orders', 'counter-receiving' ],
 		],
 		'people'      => [
 			'label' => 'People',

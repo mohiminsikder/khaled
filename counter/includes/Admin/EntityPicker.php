@@ -266,6 +266,15 @@ class EntityPicker {
 			} else {
 				wireAll();
 			}
+
+			// C3 — a screen with a repeatable-row line grid (Purchase Orders)
+			// clones a <template> containing a real, server-rendered picker for
+			// each new row rather than hand-building the same markup a second
+			// time in JS (which would drift from render()'s own HTML the moment
+			// either one changed). wireAll() is idempotent by its own
+			// data-cntr-wired guard, so calling it again after inserting a
+			// cloned row only ever wires what's actually new.
+			window.CNTR_EntityPicker = { wireAll: wireAll };
 		} )();
 		</script>
 		<?php

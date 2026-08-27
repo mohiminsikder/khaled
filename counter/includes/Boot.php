@@ -152,6 +152,9 @@ class Boot {
 		Admin\Screens\OutboxFailures::init();
 		Admin\Screens\OversellLog::init();
 		Admin\Screens\Products::init();
+		Admin\Screens\Suppliers::init();
+		Admin\Screens\PurchaseOrders::init();
+		Admin\Screens\Receiving::init();
 		Cli::init();
 		Pos\Assets::init();
 	}

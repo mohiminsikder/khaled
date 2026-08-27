@@ -180,6 +180,7 @@ class Selftest {
 		$this->test_quick_add();
 		$this->test_list_template();
 		$this->test_products_screen();
+		$this->test_purchase_screens();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -3555,6 +3556,191 @@ class Selftest {
 		);
 
 		wp_set_current_user( $original_user_id_pr );
+	}
+
+	// -- C3: test_purchase_screens() -- 6 checks ---------------------------------------
+
+	private function test_purchase_screens(): void {
+		global $wpdb;
+
+		$create_supplier = \Counter\Purchasing\Suppliers::create( [ 'name' => 'Counter Selftest Fixture Purchase Screens Supplier' ] );
+		$supplier_id      = is_wp_error( $create_supplier ) ? 0 : $create_supplier['id'];
+		if ( $supplier_id ) {
+			$this->supplier_fixture_ids[] = $supplier_id;
+		}
+
+		$location_id = \Counter\Stock\Locations::default_id();
+
+		// 1. Margin and selling price stay consistent both directions — the
+		// same formula the line grid's own live oninput recalc uses
+		// (PurchaseOrders.php's own script()), exercised here in PHP since
+		// that's what this self-test framework can actually call.
+		$unit_cost        = '80.0000';
+		$margin_in        = '20.0000';
+		$price_from_margin = \Counter\Admin\Screens\PurchaseOrders::price_from_margin( $unit_cost, $margin_in );
+		$margin_back       = \Counter\Admin\Screens\PurchaseOrders::margin_from_price( $unit_cost, $price_from_margin );
+		$price_in          = '100.0000';
+		$margin_from_price = \Counter\Admin\Screens\PurchaseOrders::margin_from_price( $unit_cost, $price_in );
+		$price_back        = \Counter\Admin\Screens\PurchaseOrders::price_from_margin( $unit_cost, $margin_from_price );
+		$this->check(
+			'test_purchase_screens: margin and selling price stay consistent both directions',
+			abs( (float) $margin_back - (float) $margin_in ) < 0.01 && abs( (float) $price_back - (float) $price_in ) < 0.01,
+			wp_json_encode(
+				[
+					'margin_in' => $margin_in, 'price_from_margin' => $price_from_margin, 'margin_back' => $margin_back,
+					'price_in' => $price_in, 'margin_from_price' => $margin_from_price, 'price_back' => $price_back,
+				]
+			)
+		);
+
+		// A two-line PO, fully received in one call — landed cost
+		// distribution, one ledger move per line, and lot/expiry on the
+		// resulting batches, all from the same fixture.
+		$product_a = new \WC_Product_Simple();
+		$product_a->set_name( 'Counter Selftest Fixture Purchase Screens Product A' );
+		$product_a->set_regular_price( '150.00' );
+		$product_a->set_manage_stock( true );
+		$product_a->set_stock_quantity( 0 );
+		$product_a->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product_a->save();
+		$this->product_fixture_ids[] = $product_a->get_id();
+
+		$product_b = new \WC_Product_Simple();
+		$product_b->set_name( 'Counter Selftest Fixture Purchase Screens Product B' );
+		$product_b->set_regular_price( '80.00' );
+		$product_b->set_manage_stock( true );
+		$product_b->set_stock_quantity( 0 );
+		$product_b->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product_b->save();
+		$this->product_fixture_ids[] = $product_b->get_id();
+
+		// Same shipping_total/qty/cost figures test_purchasing() already
+		// verified by hand (৳33.33 over a ৳1000/৳200 value split -> 27.78/5.55,
+		// the one-poisha remainder on the larger line) — reusing a
+		// known-correct calculation rather than deriving a new one just for
+		// this screen's own fixture.
+		$po_id = \Counter\Purchasing\Orders::create(
+			[
+				'supplier_id'    => $supplier_id,
+				'location_id'    => $location_id,
+				'shipping_total' => '33.33',
+				'other_total'    => '0',
+				'lines'          => [
+					[ 'product_id' => $product_a->get_id(), 'variation_id' => 0, 'qty_ordered' => '10', 'unit_cost' => '100.00', 'tax_rate' => '0', 'lot_no' => 'LOT-SCREEN-A', 'expiry_date' => '2027-06-30' ],
+					[ 'product_id' => $product_b->get_id(), 'variation_id' => 0, 'qty_ordered' => '5', 'unit_cost' => '40.00', 'tax_rate' => '0', 'lot_no' => 'LOT-SCREEN-B', 'expiry_date' => '2027-09-30' ],
+				],
+			]
+		);
+		if ( ! is_wp_error( $po_id ) ) {
+			$this->po_fixture_ids[] = $po_id;
+		}
+		$lines  = is_wp_error( $po_id ) ? [] : \Counter\Purchasing\Orders::lines( $po_id );
+		$line_a = null;
+		$line_b = null;
+		foreach ( $lines as $l ) {
+			if ( (int) $l['product_id'] === $product_a->get_id() ) {
+				$line_a = $l;
+			} elseif ( (int) $l['product_id'] === $product_b->get_id() ) {
+				$line_b = $l;
+			}
+		}
+
+		// 3 (checked before 2, since it needs no receiving yet) — landed
+		// cost distributes by received/ordered value, same figures
+		// test_purchasing() already established independently.
+		$this->check(
+			'test_purchase_screens: landed cost distributes by received value',
+			$line_a && $line_b && '27.7800' === $line_a['landed_cost_share'] && '5.5500' === $line_b['landed_cost_share'],
+			wp_json_encode( [ 'a' => $line_a['landed_cost_share'] ?? null, 'b' => $line_b['landed_cost_share'] ?? null ] )
+		);
+
+		$uuid   = wp_generate_uuid4();
+		$this->po_receive_uuid_options[] = 'cntr_po_receive_uuid_' . sanitize_key( $uuid );
+		$result = $line_a && $line_b
+			? \Counter\Purchasing\Receiving::receive( $po_id, $uuid, [ $line_a['id'] => '10', $line_b['id'] => '5' ], get_current_user_id() )
+			: new \WP_Error( 'cntr_selftest_fixture_broken', 'lines missing' );
+		if ( ! is_wp_error( $result ) ) {
+			$this->batch_fixture_ids = array_merge( $this->batch_fixture_ids, $result['batch_ids'] );
+		}
+
+		// 4. Posting writes one ledger move per line — 2 lines, both fully
+		// received in this one call, must be exactly 2 stock_moves rows.
+		$moves_table = Install::table( 'stock_moves' );
+		$move_count  = (int) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COUNT(*) FROM {$moves_table} WHERE ref_type = 'purchase_order' AND ref_id = %d AND reason = 'purchase'", (int) $po_id )
+		);
+		$this->check(
+			'test_purchase_screens: posting writes one ledger move per line',
+			! is_wp_error( $result ) && 2 === $move_count,
+			wp_json_encode( [ 'result' => is_wp_error( $result ) ? $result->get_error_message() : $result, 'move_count' => $move_count ] )
+		);
+
+		// 5. A batch is created with lot and expiry — for both lines, the
+		// exact values set on the PO itself.
+		$batches_table = Install::table( 'batches' );
+		$batch_rows    = is_wp_error( $result )
+			? []
+			: $wpdb->get_results(
+				$wpdb->prepare( "SELECT lot_no, expiry_date FROM {$batches_table} WHERE id IN (" . implode( ',', array_fill( 0, count( $result['batch_ids'] ), '%d' ) ) . ')', ...$result['batch_ids'] ), // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- placeholders built from count(), values bound via ...$result['batch_ids']
+				ARRAY_A
+			);
+		$lot_pairs = array_map( static fn( $r ) => $r['lot_no'] . '|' . $r['expiry_date'], $batch_rows );
+		$this->check(
+			'test_purchase_screens: a batch is created with lot and expiry',
+			! is_wp_error( $result ) && in_array( 'LOT-SCREEN-A|2027-06-30', $lot_pairs, true ) && in_array( 'LOT-SCREEN-B|2027-09-30', $lot_pairs, true ),
+			wp_json_encode( $batch_rows )
+		);
+
+		// 6. The supplier ledger debit equals the landed total.
+		$ledger_balance = $supplier_id ? \Counter\Purchasing\SupplierLedger::balance( $supplier_id ) : null;
+		$this->check(
+			'test_purchase_screens: the supplier ledger debit equals the landed total',
+			! is_wp_error( $result ) && null !== $ledger_balance && 0 === bccomp( $ledger_balance, $result['bill_total'], 4 ),
+			wp_json_encode( [ 'ledger_balance' => $ledger_balance, 'bill_total' => is_wp_error( $result ) ? null : $result['bill_total'] ] )
+		);
+
+		// A second, single-line PO received PARTIALLY — kept separate from
+		// the fixture above so "leaves the PO open" is never muddied by the
+		// first PO's own full receipt.
+		$product_c = new \WC_Product_Simple();
+		$product_c->set_name( 'Counter Selftest Fixture Purchase Screens Product C' );
+		$product_c->set_regular_price( '25.00' );
+		$product_c->set_manage_stock( true );
+		$product_c->set_stock_quantity( 0 );
+		$product_c->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product_c->save();
+		$this->product_fixture_ids[] = $product_c->get_id();
+
+		$po_id_2 = \Counter\Purchasing\Orders::create(
+			[
+				'supplier_id' => $supplier_id,
+				'location_id' => $location_id,
+				'lines'       => [
+					[ 'product_id' => $product_c->get_id(), 'variation_id' => 0, 'qty_ordered' => '20', 'unit_cost' => '10.00', 'tax_rate' => '0' ],
+				],
+			]
+		);
+		if ( ! is_wp_error( $po_id_2 ) ) {
+			$this->po_fixture_ids[] = $po_id_2;
+		}
+		$line_c = is_wp_error( $po_id_2 ) ? null : ( \Counter\Purchasing\Orders::lines( $po_id_2 )[0] ?? null );
+
+		$uuid_2 = wp_generate_uuid4();
+		$this->po_receive_uuid_options[] = 'cntr_po_receive_uuid_' . sanitize_key( $uuid_2 );
+		$partial_result = $line_c
+			? \Counter\Purchasing\Receiving::receive( $po_id_2, $uuid_2, [ $line_c['id'] => '6' ], get_current_user_id() )
+			: new \WP_Error( 'cntr_selftest_fixture_broken', 'line missing' );
+		if ( ! is_wp_error( $partial_result ) ) {
+			$this->batch_fixture_ids = array_merge( $this->batch_fixture_ids, $partial_result['batch_ids'] );
+		}
+		$po_2_after = is_wp_error( $po_id_2 ) ? null : \Counter\Purchasing\Orders::get( $po_id_2 );
+
+		// 2. A partial receive leaves the PO open.
+		$this->check(
+			'test_purchase_screens: a partial receive leaves the PO open',
+			! is_wp_error( $partial_result ) && $po_2_after && 'partial' === $po_2_after['status'],
+			wp_json_encode( [ 'partial_result' => is_wp_error( $partial_result ) ? $partial_result->get_error_message() : $partial_result, 'po_status' => $po_2_after['status'] ?? null ] )
+		);
 	}
 
 	/**
