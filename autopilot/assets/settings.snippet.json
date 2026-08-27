@@ -1,0 +1,77 @@
+{
+  "_comment": "Merge into the PROJECT .claude/settings.json of the repo you are automating — not ~/.claude/settings.json. User settings live inside CLAUDE_CONFIG_DIR, so an account rotation would change them too, and your second profile would start denying commands the first one allowed. Read references/setup.md before using this: the allow list is a starting point, not a safe default for every repo. Widen it deliberately, one entry at a time.",
+
+  "promptCacheTtl": "1h",
+  "subagentPromptCacheTtl": "1h",
+  "autoCompactEnabled": false,
+  "crossSessionInbound": "hold",
+  "spinnerTipsEnabled": false,
+
+  "env": {
+    "CLAUDE_CODE_GOAL_CHECKIN_MINUTES": "0",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "DISABLE_TELEMETRY": "1",
+    "BASH_MAX_OUTPUT_LENGTH": "8000",
+    "BASH_DEFAULT_TIMEOUT_MS": "180000"
+  },
+
+  "permissions": {
+    "allow": [
+      "Read", "Grep", "Glob", "Edit", "Write",
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git add:*)",
+      "Bash(git commit:*)", "Bash(git log:*)", "Bash(git show:*)",
+      "Bash(git checkout -- *)", "Bash(git stash:*)", "Bash(git tag:*)",
+      "Bash(npm test:*)", "Bash(npm run:*)", "Bash(npm ci)",
+      "Bash(npx:*)", "Bash(node:*)",
+      "Bash(php:*)", "Bash(composer:*)",
+      "Bash(pytest:*)", "Bash(python3:*)",
+      "Bash(go test:*)", "Bash(cargo test:*)",
+      "Bash(mkdir:*)", "Bash(touch:*)", "Bash(sed -n:*)",
+      "Bash(./scripts/notify.sh:*)", "Bash(./scripts/preflight.sh)"
+    ],
+    "deny": [
+      "WebSearch",
+      "WebFetch",
+      "NotebookEdit",
+      "Bash(git push --force:*)",
+      "Bash(git push:*)",
+      "Bash(rm -rf:*)",
+      "Bash(sudo:*)",
+      "Bash(curl:* -X POST *)",
+      "Bash(docker system prune:*)",
+      "Bash(*DROP TABLE*)",
+      "Bash(*TRUNCATE*)",
+      "Read(./.env)",
+      "Read(**/.env)",
+      "Read(**/id_rsa)",
+      "Read(**/*.pem)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "Bash",
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-output.sh", "timeout": 15 } ] }
+    ],
+    "StopFailure": [
+      { "matcher": "rate_limit|authentication_failed|billing_error|oauth_org_not_allowed",
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/on-stop-failure.sh", "timeout": 15 } ] }
+    ],
+    "PermissionDenied": [
+      { "matcher": "*",
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/on-denied.sh", "timeout": 20 } ] }
+    ],
+    "Notification": [
+      { "matcher": "permission_prompt|idle_prompt|agent_needs_input",
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/on-needs-input.sh", "timeout": 20 } ] }
+    ],
+    "PreCompact": [
+      { "matcher": "auto",
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/pre-compact.sh", "timeout": 20 } ] }
+    ],
+    "SessionStart": [
+      { "matcher": "startup|resume|compact",
+        "hooks": [ { "type": "command", "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/inject-state.sh", "timeout": 20 } ] }
+    ]
+  }
+}

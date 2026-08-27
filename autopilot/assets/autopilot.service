@@ -1,0 +1,35 @@
+# systemd --user unit. Resumes an autopilot run after a reboot with nothing typed.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   sed "s|__PROJECT__|$PWD|g" assets/autopilot.service > ~/.config/systemd/user/autopilot.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now autopilot.service
+#   sudo loginctl enable-linger "$USER"     # start before you log in
+#
+# Watch it:   journalctl --user -u autopilot -f
+# Stop it:    touch __PROJECT__/.autopilot/HALT
+
+[Unit]
+Description=Claude Code autopilot run
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__PROJECT__
+ExecStart=__PROJECT__/scripts/autopilot-run.sh --resume
+
+# Restart covers the power cut, the OOM kill, and the crashed claude process
+# alike. --resume reconstructs state from disk with no model call, so a restart
+# loop costs nothing but log lines.
+Restart=always
+RestartSec=60
+
+# Do not fight a genuine halt.
+SuccessExitStatus=0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
