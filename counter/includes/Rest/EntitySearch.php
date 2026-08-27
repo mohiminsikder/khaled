@@ -27,10 +27,11 @@ class EntitySearch {
 			[
 				'methods'             => 'GET',
 				'callback'            => [ self::class, 'handle' ],
-				// Adjust Stock is the only screen this route serves today; a future
-				// consumer with its own capability extends this list when it lands,
-				// same as every other route in this plugin.
-				'permission_callback' => Router::guard( 'cntr_adjust_stock' ),
+				// Adjust Stock (cntr_adjust_stock) was the only screen this route
+				// served originally; Products (C2, cntr_manage_stock) is the
+				// second, extending the list exactly as the original comment
+				// here said a future consumer would.
+				'permission_callback' => Router::guard_any( [ 'cntr_adjust_stock', 'cntr_manage_stock' ] ),
 				'args'                => [
 					'type'      => [
 						'required'          => true,

@@ -179,6 +179,7 @@ class Selftest {
 		$this->test_quick_add_listing();
 		$this->test_quick_add();
 		$this->test_list_template();
+		$this->test_products_screen();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -3381,6 +3382,179 @@ class Selftest {
 			'' !== $admin_button && '' === $subscriber_button,
 			wp_json_encode( [ 'admin_button_len' => strlen( $admin_button ), 'subscriber_button' => $subscriber_button ] )
 		);
+	}
+
+	// -- C2: test_products_screen() -- 4 checks ----------------------------------------
+
+	private function test_products_screen(): void {
+		$main_id = \Counter\Stock\Locations::default_id();
+
+		$original_user_id_pr = get_current_user_id();
+		$admins_pr              = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_pr ) ) {
+			wp_set_current_user( (int) $admins_pr[0] );
+		}
+
+		// 1. A variable product shows per-variation stock — two variations,
+		// two DIFFERENT quantities, at the same location. variation_rows()
+		// must return each one's own figure, never the parent's summed
+		// total (7 = 3 + 4) standing in for both.
+		$parent = new \WC_Product_Variable();
+		$parent->set_name( 'Counter Selftest Fixture Products Screen Variable' );
+		$parent->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$parent->save();
+		$parent_id                   = $parent->get_id();
+		$this->product_fixture_ids[] = $parent_id;
+
+		$var_a = new \WC_Product_Variation();
+		$var_a->set_parent_id( $parent_id );
+		$var_a->set_regular_price( '50.00' );
+		$var_a->set_manage_stock( true );
+		$var_a->set_stock_quantity( 0 );
+		$var_a->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$var_a->save();
+		$this->product_fixture_ids[] = $var_a->get_id();
+
+		$var_b = new \WC_Product_Variation();
+		$var_b->set_parent_id( $parent_id );
+		$var_b->set_regular_price( '60.00' );
+		$var_b->set_manage_stock( true );
+		$var_b->set_stock_quantity( 0 );
+		$var_b->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$var_b->save();
+		$this->product_fixture_ids[] = $var_b->get_id();
+
+		Db::transaction(
+			function () use ( $parent_id, $var_a, $var_b, $main_id ) {
+				\Counter\Stock\Ledger::move(
+					[ 'product_id' => $parent_id, 'variation_id' => $var_a->get_id(), 'location_id' => $main_id, 'qty_delta' => '3', 'reason' => 'opening', 'ref_type' => 'selftest_products_screen', 'ref_id' => 0 ]
+				);
+				\Counter\Stock\Ledger::move(
+					[ 'product_id' => $parent_id, 'variation_id' => $var_b->get_id(), 'location_id' => $main_id, 'qty_delta' => '4', 'reason' => 'opening', 'ref_type' => 'selftest_products_screen', 'ref_id' => 0 ]
+				);
+			}
+		);
+
+		$variation_rows = \Counter\Admin\Screens\Products::variation_rows( $parent_id );
+		$by_variation   = [];
+		foreach ( $variation_rows as $r ) {
+			$by_variation[ $r['variation_id'] ] = $r['stock_by_location'][ $main_id ] ?? null;
+		}
+		$this->check(
+			'test_products_screen: a variable product shows per-variation stock',
+			2 === count( $variation_rows )
+				&& '3.0000' === ( $by_variation[ $var_a->get_id() ] ?? null )
+				&& '4.0000' === ( $by_variation[ $var_b->get_id() ] ?? null ),
+			wp_json_encode( $by_variation )
+		);
+
+		// 2. Low-stock filter matches reorder_list() — a product with a
+		// real alert quantity, stocked at or below it. Products::
+		// low_stock_rows() must contain the exact same tuple
+		// Reports::reorder_list() itself reports for this product, never a
+		// second, drifted definition of "low."
+		$low_product = new \WC_Product_Simple();
+		$low_product->set_name( 'Counter Selftest Fixture Products Screen Low Stock' );
+		$low_product->set_regular_price( '20.00' );
+		$low_product->set_manage_stock( true );
+		$low_product->set_low_stock_amount( 5 );
+		$low_product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$low_product->save();
+		$low_product_id              = $low_product->get_id();
+		$this->product_fixture_ids[] = $low_product_id;
+
+		Db::transaction(
+			function () use ( $low_product_id, $main_id ) {
+				\Counter\Stock\Ledger::move(
+					[ 'product_id' => $low_product_id, 'variation_id' => 0, 'location_id' => $main_id, 'qty_delta' => '2', 'reason' => 'opening', 'ref_type' => 'selftest_products_screen', 'ref_id' => 0 ]
+				);
+			}
+		);
+
+		$reorder_rows = \Counter\Reports\Reports::reorder_list();
+		$reorder_row  = null;
+		foreach ( $reorder_rows as $r ) {
+			if ( $low_product_id === $r['product_id'] && $main_id === $r['location_id'] ) {
+				$reorder_row = $r;
+				break;
+			}
+		}
+		$screen_rows = \Counter\Admin\Screens\Products::low_stock_rows();
+		$screen_row  = null;
+		foreach ( $screen_rows as $r ) {
+			if ( $low_product_id === $r['product_id'] && $main_id === $r['location_id'] ) {
+				$screen_row = $r;
+				break;
+			}
+		}
+		$this->check(
+			'test_products_screen: low-stock filter matches reorder_list()',
+			null !== $reorder_row && null !== $screen_row
+				&& $reorder_row['qty'] === $screen_row['qty'] && $reorder_row['threshold'] === $screen_row['threshold'],
+			wp_json_encode( [ 'reorder' => $reorder_row, 'screen' => $screen_row ] )
+		);
+
+		// 3. Unit cost is hidden without cntr_view_cost — same product,
+		// queried once per user. unset(), never zeroed (Reports.php's own
+		// established rule).
+		$cost_product = new \WC_Product_Simple();
+		$cost_product->set_name( 'Counter Selftest Fixture Products Screen Cost' );
+		$cost_product->set_regular_price( '30.00' );
+		$cost_product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$cost_product->save();
+		$cost_product_id             = $cost_product->get_id();
+		$this->product_fixture_ids[] = $cost_product_id;
+
+		$rows_with_cost = \Counter\Admin\Screens\Products::query_products( [ 's' => 'Counter Selftest Fixture Products Screen Cost' ] );
+		$row_with_cost  = null;
+		foreach ( $rows_with_cost as $r ) {
+			if ( $cost_product_id === $r['product_id'] ) {
+				$row_with_cost = $r;
+				break;
+			}
+		}
+
+		$subscriber_email_pr = 'cntr-selftest-products-' . wp_generate_password( 8, false ) . '@example.invalid';
+		$subscriber_id_pr    = wc_create_new_customer( $subscriber_email_pr, '', wp_generate_password( 16 ) );
+		if ( ! is_wp_error( $subscriber_id_pr ) ) {
+			$this->customer_fixture_ids[] = $subscriber_id_pr;
+			wp_set_current_user( $subscriber_id_pr );
+		}
+		$rows_without_cost = \Counter\Admin\Screens\Products::query_products( [ 's' => 'Counter Selftest Fixture Products Screen Cost' ] );
+		$row_without_cost  = null;
+		foreach ( $rows_without_cost as $r ) {
+			if ( $cost_product_id === $r['product_id'] ) {
+				$row_without_cost = $r;
+				break;
+			}
+		}
+		if ( ! empty( $admins_pr ) ) {
+			wp_set_current_user( (int) $admins_pr[0] );
+		}
+
+		$this->check(
+			'test_products_screen: unit cost is hidden without cntr_view_cost',
+			null !== $row_with_cost && array_key_exists( 'unit_cost', $row_with_cost )
+				&& null !== $row_without_cost && ! array_key_exists( 'unit_cost', $row_without_cost ),
+			wp_json_encode( [ 'with' => $row_with_cost, 'without' => $row_without_cost ] )
+		);
+
+		// 4. The picker resolves by name.
+		$search_results = \Counter\Rest\EntitySearch::search_products( 'Counter Selftest Fixture Products Screen Cost' );
+		$found           = false;
+		foreach ( $search_results as $r ) {
+			if ( $cost_product_id === $r['id'] ) {
+				$found = true;
+				break;
+			}
+		}
+		$this->check(
+			'test_products_screen: the picker resolves by name',
+			$found,
+			wp_json_encode( $search_results )
+		);
+
+		wp_set_current_user( $original_user_id_pr );
 	}
 
 	/**
