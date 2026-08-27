@@ -109,3 +109,19 @@ system declined to make unattended). **Continuing Phase A without that baseline*
   that happens, and worth treating that first real result set as the actual baseline, not the count
   quoted anywhere in the plan docs (`TILLBUGS.md`'s "465 checks" describes the pre-crash-discovery
   belief, not a number this project has ever actually observed complete).
+
+### 2026-08-27 · Superseding the above: per-method reflection-probing, not just `php -l`
+
+The "not claiming these are self-test-verified" line above was written during Phase A and is stale as
+of B4 onward. In practice: every new/extended `test_*()` method since B4 (`test_order_discount`,
+`test_x_report`, `test_sale_documents`, `test_quick_add`, `test_list_template`, and others) has been
+verified LIVE on peapip.com, individually, via a small `wp eval-file` script that uses
+`ReflectionClass`/`ReflectionMethod` to `setAccessible(true)` and `invoke()` that ONE private method
+directly, reads its results back off the private `$results` property, then invokes the private
+`cleanup()` method to remove exactly what that one method's own fixture tracked — never the full
+`Selftest::run()` (still blocked, per the entries above and `BLOCKED.md`). This is real self-test
+verification against the live production database, task by task, not merely `php -l` plus manual
+review. The distinction that still holds: no task has been verified against the FULL suite's own
+`run()` sequence (interaction effects between tests, the fixed method order, `cleanup()` running once at
+the very end) — only against each task's own new/changed method(s) in isolation. That remains blocked
+on the same payment-account issue.
