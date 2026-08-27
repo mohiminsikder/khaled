@@ -221,6 +221,7 @@ class Selftest {
 		$this->test_hourly_rollup();
 		$this->test_trending();
 		$this->test_register_report();
+		$this->test_cash_flow();
 		$this->test_reports_channel();
 		$this->test_dashboard();
 		$this->test_pos_entry_points();
@@ -8668,6 +8669,189 @@ class Selftest {
 			'test_register_report: an open shift appears as open',
 			null !== $row_b && true === $row_b['is_open'] && null === $row_b['variance'],
 			wp_json_encode( [ 'is_open' => $row_b['is_open'] ?? null, 'variance' => $row_b['variance'] ?? 'missing key' ] )
+		);
+	}
+
+	// -- D4: test_cash_flow() -- 6 checks -----------------------------------------------
+
+	private function test_cash_flow(): void {
+		global $wpdb;
+		$tenders_table     = Install::table( 'tenders' );
+		$sales_daily_table = Install::table( 'sales_daily' );
+
+		// cntr_view_cost gates valuation()/profit_and_loss() (and therefore
+		// BalanceSheet::summary()) — found live: without this, 'value' and
+		// 'cogs' come back silently absent, not merely zero, and every
+		// downstream check here reads a fallback zero instead of a real
+		// figure.
+		$admins_cf = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_cf ) ) {
+			wp_set_current_user( (int) $admins_cf[0] );
+		}
+
+		$location_id = \Counter\Stock\Locations::create(
+			[ 'name' => 'Counter Selftest Fixture Cash Flow Location', 'code' => 'CNTR-SELFTEST-CF-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->location_fixture_ids[] = $location_id;
+
+		$register_id = \Counter\Pos\Registers::create( [ 'name' => 'Counter Selftest Fixture Cash Flow Register', 'location_id' => $location_id ] );
+		$this->register_fixture_ids[] = $register_id;
+		$shift_id = \Counter\Pos\Shifts::open( $register_id, get_current_user_id(), '0.00' );
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture Cash Flow Product' );
+		$product->set_regular_price( '30.00' );
+		$product->set_manage_stock( true );
+		$product->set_stock_quantity( 0 );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save();
+		$this->product_fixture_ids[] = $product->get_id();
+		$batch_id = \Counter\Stock\Batches::receive( [ 'product_id' => $product->get_id(), 'variation_id' => 0, 'location_id' => $location_id, 'lot_no' => 'CF-A', 'qty_received' => '20', 'unit_cost' => '10.0000' ] );
+		$this->batch_fixture_ids[] = $batch_id;
+
+		$context = [ 'register_id' => $register_id, 'shift_id' => $shift_id, 'location_id' => $location_id, 'operator_id' => get_current_user_id() ];
+
+		// Two tenders against a real, active account (CARD — 'card' resolves
+		// to it via Tenders::account_for_method()), backdated so a narrower
+		// date range genuinely has to carry a balance FORWARD into it rather
+		// than happening to start from zero by coincidence.
+		$order_old = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product, 'qty' => 1, 'subtotal' => '30.00', 'total' => '30.00' ] ],
+			$context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-CF-OLD-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order_old->get_id();
+		\Counter\Orders\Channel::apply_stock( $order_old );
+		\Counter\Pos\Tenders::record( $order_old, [ [ 'method' => 'card', 'amount' => '30.00' ] ], $shift_id );
+		$wpdb->update( $tenders_table, [ 'created_at' => gmdate( 'Y-m-d H:i:s', strtotime( '-3 days' ) ) ], [ 'order_id' => $order_old->get_id() ] );
+
+		$order_new = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product, 'qty' => 1, 'subtotal' => '30.00', 'total' => '30.00' ] ],
+			$context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-CF-NEW-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order_new->get_id();
+		\Counter\Orders\Channel::apply_stock( $order_new );
+		\Counter\Pos\Tenders::record( $order_new, [ [ 'method' => 'card', 'amount' => '30.00' ] ], $shift_id );
+
+		$card_account_id = \Counter\Pos\Tenders::account_for_method( 'card' );
+
+		// 1. The running balance is consistent row to row — a pure
+		// arithmetic invariant of ledger()'s own computation, checked
+		// against every row for this one account across all of history
+		// (real production activity included), not just this fixture's own.
+		$full_ledger = \Counter\Reports\CashFlow::ledger( [ 'account_id' => $card_account_id ] );
+		$running     = '0.0000';
+		$consistent  = true;
+		foreach ( $full_ledger as $r ) {
+			$running = bcadd( bcsub( $running, $r['debit'], 4 ), $r['credit'], 4 );
+			if ( 0 !== bccomp( $running, $r['account_balance'], 4 ) ) {
+				$consistent = false;
+				break;
+			}
+		}
+		$this->check(
+			'test_cash_flow: the running balance is consistent row to row',
+			$consistent && ! empty( $full_ledger ),
+			wp_json_encode( [ 'rows' => count( $full_ledger ), 'consistent' => $consistent ] )
+		);
+
+		// 2. Every payment resolves to an account — ledger() only ever
+		// reads rows its own three source queries already filter to
+		// account_id > 0 (tenders) / ref_id > 0 via ref_type='payment_account'
+		// (supplier payments); this confirms that holds across the whole
+		// table, not just by construction.
+		$all_rows      = \Counter\Reports\CashFlow::ledger( [] );
+		$account_ids   = array_column( $all_rows, 'account_id' );
+		$this->check(
+			'test_cash_flow: every payment resolves to an account',
+			! empty( $all_rows ) && 0 === count( array_filter( $account_ids, static fn( $id ) => $id <= 0 ) ),
+			wp_json_encode( [ 'rows' => count( $all_rows ), 'zero_or_negative_accounts' => count( array_filter( $account_ids, static fn( $id ) => $id <= 0 ) ) ] )
+		);
+
+		// 3. A negative COGS is reported as an anomaly, never printed as a
+		// figure — a synthetic sales_daily row (this fixture's own isolated
+		// location, so no real data is touched) with cogs deliberately
+		// negative, the shape a return recorded with no matching sale would
+		// produce (teardown defect #9). channel='online' — this fixture's
+		// two real sales above are 'pos', and (day,channel,location_id) is
+		// this table's own PRIMARY KEY: sharing 'pos' would silently fail
+		// this insert (a duplicate-key no-op, found live) instead of adding
+		// a second row, leaving the real +20.0000 pos cogs as the only
+		// figure profit_and_loss() ever saw.
+		$anomaly_day = gmdate( 'Y-m-d' );
+		$wpdb->insert(
+			$sales_daily_table,
+			[
+				'day' => $anomaly_day, 'channel' => 'online', 'location_id' => $location_id,
+				'orders_count' => 0, 'gross' => '0.0000', 'discount' => '0.0000', 'tax' => '0.0000',
+				'shipping' => '0.0000', 'rounding' => '0.0000', 'refunds' => '0.0000', 'net' => '0.0000',
+				'cogs' => '-50.0000', 'margin' => '50.0000', 'items_count' => '0.0000', 'updated_at' => Db::now(),
+			]
+		);
+		$summary_anomaly = \Counter\Reports\BalanceSheet::summary( [ 'from' => $anomaly_day, 'to' => $anomaly_day, 'location_id' => $location_id ] );
+		$this->check(
+			'test_cash_flow: a negative COGS is reported as an anomaly and not printed as a figure',
+			true === $summary_anomaly['cogs_anomaly'] && null === $summary_anomaly['cogs'],
+			wp_json_encode( [ 'cogs_anomaly' => $summary_anomaly['cogs_anomaly'], 'cogs' => $summary_anomaly['cogs'] ] )
+		);
+		$wpdb->delete( $sales_daily_table, [ 'day' => $anomaly_day, 'channel' => 'online', 'location_id' => $location_id ] );
+
+		// 4. The balance sheet's own totals are internally consistent — the
+		// account list BalanceSheet::summary() returns is built from the
+		// same ledger rows CashFlow::ledger() itself computed; their sum
+		// must equal that ledger's own final combined running total.
+		$as_of         = gmdate( 'Y-m-d', strtotime( '+1 day' ) ); // include "today" fully
+		$summary       = \Counter\Reports\BalanceSheet::summary( [ 'to' => $as_of ] );
+		$ledger_to_now = \Counter\Reports\CashFlow::ledger( [ 'to' => $as_of ] );
+		$ledger_total  = empty( $ledger_to_now ) ? '0.0000' : end( $ledger_to_now )['total_balance'];
+		$accounts_sum  = '0.0000';
+		foreach ( $summary['accounts'] as $a ) {
+			$accounts_sum = bcadd( $accounts_sum, $a['balance'], 4 );
+		}
+		$this->check(
+			'test_cash_flow: the balance sheet\'s own totals are internally consistent',
+			0 === bccomp( $accounts_sum, $ledger_total, 4 ),
+			wp_json_encode( [ 'accounts_sum' => $accounts_sum, 'ledger_total' => $ledger_total ] )
+		);
+
+		// 5. Closing stock matches the ledger — this fixture's own batch,
+		// 20 units received minus 2 sold above, at ৳10 unit cost.
+		$expected_closing = bcmul( '18.0000', '10.0000', 4 );
+		$this->check(
+			'test_cash_flow: closing stock matches the ledger',
+			0 === bccomp( $summary_anomaly['closing_stock'], $expected_closing, 4 ),
+			wp_json_encode( [ 'expected' => $expected_closing, 'actual' => $summary_anomaly['closing_stock'] ] )
+		);
+
+		// 6. A date range change does not break the carry-forward — the
+		// SAME real row (this fixture's own non-backdated tender, found by
+		// its own order number, not assumed to be first — real production
+		// card tenders share this account) must report the identical
+		// account_balance whether read from a window that starts long
+		// before it (so the running total is built up from lots of prior
+		// history) or one narrowed to start just before it (so the SAME
+		// prior history has to be carried forward instead of recomputed).
+		// A carry-forward bug would make the narrow window's own value
+		// LOWER by exactly the pre-window balance it failed to carry.
+		$narrow_from   = gmdate( 'Y-m-d', strtotime( '-1 day' ) );
+		$narrow_to     = gmdate( 'Y-m-d', strtotime( '+1 day' ) );
+		$narrow_ledger = \Counter\Reports\CashFlow::ledger( [ 'from' => $narrow_from, 'to' => $narrow_to, 'account_id' => $card_account_id ] );
+		$wide_ledger   = \Counter\Reports\CashFlow::ledger( [ 'to' => $narrow_to, 'account_id' => $card_account_id ] );
+
+		$find_new_row = static function ( array $rows ) use ( $order_new ) {
+			foreach ( $rows as $r ) {
+				if ( $r['counterparty'] === ( '#' . $order_new->get_order_number() ) ) {
+					return $r;
+				}
+			}
+			return null;
+		};
+		$narrow_row = $find_new_row( $narrow_ledger );
+		$wide_row   = $find_new_row( $wide_ledger );
+
+		$this->check(
+			'test_cash_flow: a date range change does not break the carry-forward',
+			null !== $narrow_row && null !== $wide_row && 0 === bccomp( $narrow_row['account_balance'], $wide_row['account_balance'], 4 ),
+			wp_json_encode( [ 'narrow_balance' => $narrow_row['account_balance'] ?? null, 'wide_balance' => $wide_row['account_balance'] ?? null ] )
 		);
 	}
 

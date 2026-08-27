@@ -248,4 +248,13 @@ changes — confirmed by direct sanity checks of `Reports::margin_by_product()` 
 `Reports::run('sales_by_product')` against real data, both correct, before moving on rather than
 chasing every already-broken test in the suite one at a time.
 
+**Same pattern again, D4:** `test_cash_flow()`'s own fixture location collided with its own prior run's
+leftover THREE separate times while this test was being debugged for unrelated reasons (a missing
+`wp_set_current_user()` before calling cntr_view_cost-gated code, then a `(day,channel,location_id)`
+primary-key collision in the test's own synthetic anomaly row) — each iteration's failed run left one
+more `Counter Selftest Fixture Cash Flow Location` behind, cleaned manually (3 small, explicit-id
+deletes, confirmed empty of everything but a handful of stock_move rows first) each time. No new
+information beyond what the D1/D2/D4 entries above already establish; noted only as another data
+point on how quickly this compounds during active development of anything that creates a location.
+
 _(nothing else blocked yet)_
