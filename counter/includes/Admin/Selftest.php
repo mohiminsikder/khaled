@@ -178,6 +178,7 @@ class Selftest {
 		$this->test_pos_wiring();
 		$this->test_quick_add_listing();
 		$this->test_quick_add();
+		$this->test_list_template();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -3294,6 +3295,91 @@ class Selftest {
 			'test_quick_add: it appears in the Health incomplete list until category and cost are set',
 			$product_id > 0 && isset( $by_id[ $product_id ] ) && ! empty( $by_id[ $product_id ]['missing'] ),
 			wp_json_encode( $by_id[ $product_id ] ?? null )
+		);
+	}
+
+	// -- C1: test_list_template() -- 4 checks ------------------------------------------
+
+	/**
+	 * A minimal concrete subclass, only for this test — Admin\ListTable
+	 * itself has no queryable data of its own (every real screen, C2
+	 * onward, supplies its own prepare_items()). Defined as a real class
+	 * rather than an anonymous one: PHP anonymous classes extending
+	 * \WP_List_Table have occasionally tripped over __CLASS__-based
+	 * reflection some WP core internals do; a named class sidesteps that
+	 * without needing to find out the hard way.
+	 */
+	private function test_list_template(): void {
+		$table = new Selftest_Fixture_List_Table();
+
+		// 1. Filters round-trip — set on $_GET, read back via filter_values()
+		// exactly as render_filters_accordion() itself would read them.
+		$_GET['status'] = 'active';
+		$values          = $table->filter_values();
+		$this->check(
+			'test_list_template: filters round-trip',
+			'active' === ( $values['status'] ?? null ),
+			wp_json_encode( $values )
+		);
+		unset( $_GET['status'] );
+
+		// 2. Paging is stable across a sort — page 2 (per_page=2), sorted by
+		// name ascending, must be exactly the 3rd/4th rows in NAME order
+		// (fixture rows sort to Apple, Banana, Cherry, Date, Elderberry —
+		// page 2 is Cherry/Date), never page 1 silently substituted because
+		// a sort was also requested.
+		// \WP_List_Table::get_pagenum() reads $_REQUEST, not $_GET — and
+		// unlike a real HTTP request (where PHP populates both from the
+		// same query string), $_REQUEST is a snapshot taken once at process
+		// start; mutating $_GET afterward, as this test just did for
+		// filter_values() above, never retroactively updates it. Both are
+		// set here for exactly that reason — found live, the first attempt
+		// at this check set only $_GET and got pagenum=1 back every time.
+		$_GET['paged']     = '2';
+		$_REQUEST['paged'] = '2';
+		$_GET['orderby']   = 'name';
+		$_GET['order']     = 'asc';
+		$table->prepare_items();
+		$page_2_sorted_names = array_column( $table->items, 'name' );
+		$this->check(
+			'test_list_template: paging is stable across a sort',
+			2 === $table->get_pagenum() && [ 'Cherry', 'Date' ] === $page_2_sorted_names,
+			wp_json_encode( [ 'pagenum' => $table->get_pagenum(), 'names' => $page_2_sorted_names ] )
+		);
+		unset( $_GET['paged'], $_REQUEST['paged'], $_GET['orderby'], $_GET['order'] );
+
+		// 3 & 4. Export respects cntr_export, both directions — as an
+		// administrator (has it) and as a plain subscriber (does not).
+		// can_export()/render_export_button() are tested directly rather
+		// than maybe_handle_export() itself, which wp_die()s on refusal —
+		// fine inside a real wp-admin request, fatal to this self-test run.
+		$original_user_id_lt = get_current_user_id();
+		$admins_lt              = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_lt ) ) {
+			wp_set_current_user( (int) $admins_lt[0] );
+		}
+		$admin_can_export = $table->can_export();
+		$admin_button     = $table->render_export_button();
+
+		$subscriber_email = 'cntr-selftest-listtable-' . wp_generate_password( 8, false ) . '@example.invalid';
+		$subscriber_id    = wc_create_new_customer( $subscriber_email, '', wp_generate_password( 16 ) );
+		if ( ! is_wp_error( $subscriber_id ) ) {
+			$this->customer_fixture_ids[] = $subscriber_id;
+			wp_set_current_user( $subscriber_id );
+		}
+		$subscriber_can_export = $table->can_export();
+		$subscriber_button     = $table->render_export_button();
+		wp_set_current_user( $original_user_id_lt );
+
+		$this->check(
+			'test_list_template: export respects cntr_export',
+			true === $admin_can_export && false === $subscriber_can_export,
+			wp_json_encode( [ 'admin' => $admin_can_export, 'subscriber' => $subscriber_can_export ] )
+		);
+		$this->check(
+			'test_list_template: a user without it sees no export buttons',
+			'' !== $admin_button && '' === $subscriber_button,
+			wp_json_encode( [ 'admin_button_len' => strlen( $admin_button ), 'subscriber_button' => $subscriber_button ] )
 		);
 	}
 
@@ -12036,5 +12122,71 @@ class Selftest {
 				Settings::set( self::SETTINGS_TEST_KEY, $this->settings_prior_marker );
 			}
 		}
+	}
+}
+
+/**
+ * C1 — test_list_template()'s own fixture: a minimal, concrete
+ * Admin\ListTable subclass with a small in-memory dataset. Lives alongside
+ * Selftest itself rather than a separate includes/ file — it exists purely
+ * for that one test, and this project already ships its whole live
+ * self-test suite in production; one more small, clearly-marked fixture
+ * class is no different in kind. A real (named) class, not an anonymous
+ * one extending \WP_List_Table — anonymous classes have tripped over
+ * __CLASS__-based reflection some WP core internals do, not worth finding
+ * out the hard way here.
+ */
+class Selftest_Fixture_List_Table extends \Counter\Admin\ListTable {
+
+	private array $rows;
+
+	public function __construct() {
+		$this->rows = [
+			[ 'id' => 1, 'name' => 'Banana' ],
+			[ 'id' => 2, 'name' => 'Apple' ],
+			[ 'id' => 3, 'name' => 'Cherry' ],
+			[ 'id' => 4, 'name' => 'Date' ],
+			[ 'id' => 5, 'name' => 'Elderberry' ],
+		];
+		parent::__construct( [ 'singular' => 'fixture', 'plural' => 'fixtures', 'ajax' => false ] );
+	}
+
+	public function get_columns(): array {
+		return [ 'id' => 'ID', 'name' => 'Name' ];
+	}
+
+	public function get_filters(): array {
+		return [
+			'status' => [
+				'label'   => 'Status',
+				'type'    => 'select',
+				'options' => [ 'active' => 'Active', 'inactive' => 'Inactive' ],
+			],
+		];
+	}
+
+	public function export_rows(): array {
+		return $this->rows;
+	}
+
+	public function export_columns(): array {
+		return $this->get_columns();
+	}
+
+	public function prepare_items(): void {
+		$rows    = $this->rows;
+		$orderby = (string) ( $_GET['orderby'] ?? 'id' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- read-only sort state, fixture-only class
+		$order   = (string) ( $_GET['order'] ?? 'asc' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		usort(
+			$rows,
+			function ( $a, $b ) use ( $orderby, $order ) {
+				$cmp = $a[ $orderby ] <=> $b[ $orderby ];
+				return 'desc' === $order ? -$cmp : $cmp;
+			}
+		);
+		$per_page = 2;
+		$page     = $this->get_pagenum();
+		$this->set_pagination_args( [ 'total_items' => count( $rows ), 'per_page' => $per_page ] );
+		$this->items = array_slice( $rows, ( $page - 1 ) * $per_page, $per_page );
 	}
 }
