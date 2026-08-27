@@ -66,12 +66,24 @@ class Channel {
 	 */
 	public static function init(): void {
 		add_action( 'woocommerce_new_order', [ self::class, 'tag_channel' ], 10, 2 );
+		add_action( 'init', [ self::class, 'register_document_statuses' ] );
+		add_filter( 'wc_order_statuses', [ self::class, 'add_document_statuses_to_list' ] );
 
 		foreach ( [ 'on-hold', 'processing', 'completed' ] as $status ) {
 			add_action( "woocommerce_order_status_{$status}", [ self::class, 'on_stock_applying_status' ] );
 		}
 		add_action( 'woocommerce_order_status_cancelled', [ self::class, 'on_stock_reverting_status' ] );
 		add_action( 'woocommerce_order_status_refunded', [ self::class, 'on_stock_reverting_status' ] );
+
+		// B6 — 'cntr-draft'/'cntr-quotation' are DELIBERATELY absent from the
+		// foreach above: a sale document "never touch[es] the stock ledger" —
+		// the whole point is that Orders\Builder can build one exactly the
+		// same way as a real sale (same pricing/tax/discount logic) and have
+		// it sit inert until Rest\Sale::finalize() moves it to 'completed',
+		// which IS already in that list. Adding either status here would
+		// silently apply stock the moment a draft is saved — a future editor
+		// of this foreach should read this comment before "just adding every
+		// status" to it.
 
 		// WooCommerce's own refund-creation action — fires for a partial OR
 		// full refund, created anywhere (wp-admin, a gateway webhook, or
@@ -89,6 +101,41 @@ class Channel {
 		// admin-created refund (wp-admin, a gateway webhook) has no such
 		// caller and is exactly what this hook exists to cover.
 		add_action( 'woocommerce_order_refunded', [ self::class, 'on_order_refunded' ], 10, 2 );
+	}
+
+	/**
+	 * B6 — the two Counter-owned statuses a sale document can sit in before
+	 * it becomes a real sale. Registered as real WordPress post statuses (not
+	 * just a meta flag) so wc_get_orders()/WP_Query and the admin orders
+	 * screen all recognise them the same way they recognise 'wc-completed'.
+	 */
+	const DOCUMENT_STATUSES = [
+		'cntr-draft'      => 'Draft',
+		'cntr-quotation'  => 'Quotation',
+	];
+
+	public static function register_document_statuses(): void {
+		foreach ( self::DOCUMENT_STATUSES as $status => $label ) {
+			register_post_status(
+				'wc-' . $status,
+				[
+					'label'                     => $label,
+					'public'                    => false,
+					'exclude_from_search'       => true,
+					'show_in_admin_all_list'    => false,
+					'show_in_admin_status_list' => true,
+					/* translators: %s: number of orders in this status */
+					'label_count'               => _n_noop( $label . ' <span class="count">(%s)</span>', $label . ' <span class="count">(%s)</span>', 'counter' ),
+				]
+			);
+		}
+	}
+
+	public static function add_document_statuses_to_list( array $statuses ): array {
+		foreach ( self::DOCUMENT_STATUSES as $status => $label ) {
+			$statuses[ 'wc-' . $status ] = $label;
+		}
+		return $statuses;
 	}
 
 	/** Set only while a POS caller's own wc_create_refund() call is in flight — see init()'s own comment on woocommerce_order_refunded. */

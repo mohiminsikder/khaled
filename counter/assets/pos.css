@@ -358,6 +358,44 @@ body {
 	margin: 8px 0 16px;
 }
 
+/* B6 — Draft/Quotation/Suspend/Parked and the "editing a document" banner. */
+.cntr-checkout-bar {
+	display: flex;
+	gap: 8px;
+	padding: 8px 20px;
+	flex: 0 0 auto;
+}
+
+.cntr-checkout-bar button {
+	flex: 1 1 0;
+	padding: 8px 4px;
+	border-radius: 6px;
+	border: 1px solid var(--cntr-border);
+	background: var(--cntr-panel);
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.cntr-checkout-bar button:hover {
+	background: var(--cntr-bg);
+}
+
+.cntr-document-banner {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 20px;
+	padding: 6px 12px;
+	border-radius: 6px;
+	background: var(--cntr-accent-bg, var(--cntr-panel));
+	font-size: 13px;
+	flex: 0 0 auto;
+}
+
+.cntr-document-banner span {
+	flex: 1 1 auto;
+}
+
 .cntr-pos-search-row {
 	display: flex;
 	align-items: center;

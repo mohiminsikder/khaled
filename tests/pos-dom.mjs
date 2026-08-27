@@ -249,6 +249,70 @@ assert(!!closeCall, 'B5: confirming the close posts to /shift/close');
 assert(!!closeBody && 42 === closeBody.shift_id && '2245' === closeBody.counted_cash, `B5: the close posts the right shift_id and counted_cash (body: ${JSON.stringify(closeBody)})`);
 assert(await p.isHidden('#cntr-close-register'), 'B5: the close-register modal closes after confirming');
 
+// -- B6: draft/quotation documents and suspend on the checkout bar. Cart
+// still holds whatever B1-B4 left it with (4 lines, ৳990.00) — irrelevant
+// to what's being checked here, just needs to be non-empty.
+await p.evaluate(() => { window.__req.length = 0; });
+await p.click('#cntr-checkout-draft'); await p.waitForTimeout(400);
+const draftCall = await p.evaluate(() => (window.__req || []).find((r) => r.url.includes('/sale/document') && !r.url.includes('/sale/documents')));
+let draftBody = null;
+try { draftBody = draftCall ? JSON.parse(draftCall.opts.body) : null; } catch (e) { draftBody = null; }
+assert(!!draftBody && 'draft' === draftBody.kind, `B6: Draft posts to /sale/document with kind=draft (body: ${JSON.stringify(draftBody)})`);
+assert(0 === (await cart()), `B6: saving a draft clears the cart (has ${await cart()})`);
+
+// Quotation, same shape, on a fresh single-item cart.
+await p.click('.cntr-grid-tile:has-text("Red Lentil")'); await p.waitForTimeout(300);
+await p.evaluate(() => { window.__req.length = 0; });
+await p.click('#cntr-checkout-quotation'); await p.waitForTimeout(400);
+const quoteCall = await p.evaluate(() => (window.__req || []).find((r) => r.url.includes('/sale/document') && !r.url.includes('/sale/documents')));
+let quoteBody = null;
+try { quoteBody = quoteCall ? JSON.parse(quoteCall.opts.body) : null; } catch (e) { quoteBody = null; }
+assert(!!quoteBody && 'quotation' === quoteBody.kind, `B6: Quotation posts to /sale/document with kind=quotation (body: ${JSON.stringify(quoteBody)})`);
+assert(0 === (await cart()), `B6: saving a quotation clears the cart (has ${await cart()})`);
+
+// Suspend: reserves nothing — no network request at all — and parks into
+// the SAME held-sales list Phase F's F7/F8 already built.
+await p.click('.cntr-grid-tile:has-text("Red Lentil")'); await p.waitForTimeout(300);
+const heldCountBefore = await p.evaluate(() => window.CNTR._pos.cart.heldSales.length);
+await p.evaluate(() => { window.__req.length = 0; });
+await p.click('#cntr-checkout-suspend'); await p.waitForTimeout(400);
+const reqCountAfterSuspend = await p.evaluate(() => (window.__req || []).length);
+assert(0 === reqCountAfterSuspend, `B6: Suspend makes no network request — reserves nothing (${reqCountAfterSuspend} request(s) fired)`);
+const heldCountAfter = await p.evaluate(() => window.CNTR._pos.cart.heldSales.length);
+assert(heldCountAfter === heldCountBefore + 1, `B6: Suspend parks the cart into the held-sales list (before=${heldCountBefore}, after=${heldCountAfter})`);
+assert(0 === (await cart()), `B6: Suspend clears the cart (has ${await cart()})`);
+
+// A held sale survives a reload — Phase F's own IndexedDB persistence,
+// exercised here for the first time by an automated check rather than
+// just trusted.
+await p.reload();
+await p.waitForTimeout(1500);
+const heldCountAfterReload = await p.evaluate(() => window.CNTR._pos.cart.heldSales.length);
+assert(heldCountAfterReload >= 1, `B6: a suspended cart survives a reload (held count after reload: ${heldCountAfterReload})`);
+
+// Resume a draft from the Documents list — real lines, not a placeholder.
+await p.click('#cntr-checkout-documents'); await p.waitForTimeout(400);
+const documentsText = ((await p.textContent('#cntr-documents')) || '').replace(/\s+/g, ' ').trim();
+assert(documentsText.includes('Sugar 1kg') || documentsText.includes('#555'), `B6: the Parked list shows the open draft (text: "${documentsText}")`);
+await p.click('.cntr-held-row[data-kind="draft"]'); await p.waitForTimeout(400);
+const bannerText = ((await p.textContent('.cntr-document-banner')) || '').replace(/\s+/g, ' ').trim();
+assert(bannerText.includes('555'), `B6: resuming shows the "editing a document" banner naming it (text: "${bannerText}")`);
+const resumedLineText = ((await p.textContent('.cntr-pos-cart')) || '').replace(/\s+/g, ' ').trim();
+assert(resumedLineText.includes('Sugar 1kg'), `B6: resuming loads the document's REAL line, not a placeholder (text: "${resumedLineText}")`);
+
+// Paying a resumed document finalizes it — POST /sale/finalize with its
+// own order_id, never a fresh POST /sale.
+await p.evaluate(() => { window.__req.length = 0; });
+await p.keyboard.press('F2'); await p.waitForTimeout(400);
+await p.click('#cntr-tender-submit'); await p.waitForTimeout(400);
+const finalizeCall = await p.evaluate(() => (window.__req || []).find((r) => r.url.includes('/sale/finalize')));
+const freshSaleCall = await p.evaluate(() => (window.__req || []).find((r) => r.url.endsWith('/sale')));
+let finalizeBody = null;
+try { finalizeBody = finalizeCall ? JSON.parse(finalizeCall.opts.body) : null; } catch (e) { finalizeBody = null; }
+assert(!!finalizeCall && !freshSaleCall, `B6: paying a resumed document calls /sale/finalize, not /sale (finalize=${!!finalizeCall}, fresh /sale=${!!freshSaleCall})`);
+assert(!!finalizeBody && 555 === finalizeBody.order_id, `B6: finalize posts the document's own order_id (body: ${JSON.stringify(finalizeBody)})`);
+assert(0 === (await cart()) && (await p.locator('.cntr-document-banner').count()) === 0, 'B6: finalizing clears the cart and the document banner');
+
 await b.close();
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

@@ -289,10 +289,19 @@ class Expenses {
 	 * every expense, whatever its own channel tag.
 	 */
 	public static function profit_and_loss( array $args = [] ): array {
-		$from        = (string) ( $args['from'] ?? '' );
-		$to          = (string) ( $args['to'] ?? '' );
-		$channel     = in_array( $args['channel'] ?? 'all', [ 'pos', 'online', 'all' ], true ) ? $args['channel'] : 'all';
-		$location_id = (int) ( $args['location_id'] ?? 0 );
+		$from         = (string) ( $args['from'] ?? '' );
+		$to           = (string) ( $args['to'] ?? '' );
+		// B6 — the ternary's own TRUE branch used to read $args['channel']
+		// directly rather than $channel_raw: harmless whenever a caller
+		// passed a real channel, but a caller that omits the key entirely
+		// (the DEFAULT, 'all', case) took the true branch anyway — 'all' is
+		// in the allow-list — and then warned on the same undefined key the
+		// null-coalesce just worked around. Found live: test_sale_documents()
+		// is the first caller in this codebase to call profit_and_loss()
+		// with no 'channel' key at all.
+		$channel_raw  = $args['channel'] ?? 'all';
+		$channel      = in_array( $channel_raw, [ 'pos', 'online', 'all' ], true ) ? $channel_raw : 'all';
+		$location_id  = (int) ( $args['location_id'] ?? 0 );
 
 		global $wpdb;
 		$sales_table = Install::table( 'sales_daily' );

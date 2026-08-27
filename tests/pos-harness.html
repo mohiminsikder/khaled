@@ -67,6 +67,15 @@ window.fetch = async (url, opts = {}) => {
   if (u.includes('/catalog'))       return J({ cursor: 7, changed: CATALOG, removed: [] });
   if (u.includes('/customers/lookup')) return J([{ phone_norm:'8801711223344', customer_id:44, display_name:'Karim Uddin', last_order_at:'2026-08-19 18:22:00' }]);
   if (u.match(/\/customers\/\d+\/profile/)) return J(CUSTOMER);
+  if (u.includes('/sale/documents')) {
+    if (u.includes('kind=draft')) return J([{
+      order_id: 555, kind: 'draft', customer: '', total: '250.0000', item_count: 1, created_at: '2026-08-27T09:00:00',
+      lines: [{ product_id: 106, variation_id: 0, name: 'Sugar 1kg', sku: '8901234567948', qty: '1', unit_price: '250.0000', discount: '0.0000' }]
+    }]);
+    return J([]); // kind=quotation — none open
+  }
+  if (u.includes('/sale/document')) return J({ order_id: 556 });
+  if (u.includes('/sale/finalize')) return J({ order_id: 555, receipt_no: 'R1-000042-0009', receipt_html: '<p>finalized receipt</p>' });
   if (u.includes('/sale')) return J({ order_id: 9001, receipt_no: 'R1-000042-0007', html: '<p>receipt</p>' });
   if (u.includes('/quick-add')) return J({ product_id: 9101 });
   if (u.match(/\/price-groups\/2\/overrides/)) return J([{ product_id: 101, variation_id: 0, price: '550.0000' }]);

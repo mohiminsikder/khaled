@@ -99,6 +99,143 @@ class Sale {
 				],
 			]
 		);
+
+		// B6 — draft/quotation documents and finalizing one.
+		register_rest_route(
+			$ns,
+			'/sale/document',
+			[
+				'methods'             => 'POST',
+				'callback'            => [ self::class, 'handle_document' ],
+				'permission_callback' => Router::guard_any( [ 'cntr_use_pos', 'cntr_terminal_access' ], true ),
+				'args'                => [
+					'kind'           => [
+						'required'          => true,
+						'type'              => 'string',
+						'validate_callback' => static fn( $v ) => in_array( $v, [ 'draft', 'quotation' ], true ),
+					],
+					'register_id'    => [
+						'required'          => true,
+						'type'              => 'integer',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && $v > 0,
+						'sanitize_callback' => 'absint',
+					],
+					'customer'       => [ 'required' => false, 'type' => 'object' ],
+					'lines'          => [
+						'required'          => true,
+						'type'              => 'array',
+						'validate_callback' => static fn( $v ) => is_array( $v ) && ! empty( $v ),
+					],
+					'cart_discount'  => [ 'required' => false, 'type' => 'string' ],
+					'order_tax'      => [ 'required' => false, 'type' => 'string' ],
+					'shipping'       => [ 'required' => false, 'type' => 'string' ],
+					'price_group_id' => [ 'required' => false, 'type' => 'integer' ],
+				],
+			]
+		);
+
+		register_rest_route(
+			$ns,
+			'/sale/documents',
+			[
+				'methods'             => 'GET',
+				'callback'            => [ self::class, 'handle_list_documents' ],
+				'permission_callback' => Router::guard_any( [ 'cntr_use_pos', 'cntr_terminal_access' ] ),
+				'args'                => [
+					'kind' => [
+						'required'          => true,
+						'type'              => 'string',
+						'validate_callback' => static fn( $v ) => in_array( $v, [ 'draft', 'quotation' ], true ),
+					],
+				],
+			]
+		);
+
+		register_rest_route(
+			$ns,
+			'/sale/finalize',
+			[
+				'methods'             => 'POST',
+				'callback'            => [ self::class, 'handle_finalize' ],
+				'permission_callback' => Router::guard_any( [ 'cntr_use_pos', 'cntr_terminal_access' ], true ),
+				'args'                => [
+					'uuid'        => [
+						'required'          => true,
+						'type'              => 'string',
+						'validate_callback' => static fn( $v ) => is_string( $v ) && (bool) preg_match( '/^[0-9a-f-]{36}$/i', $v ),
+						'sanitize_callback' => 'sanitize_text_field',
+					],
+					'register_id' => [
+						'required'          => true,
+						'type'              => 'integer',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && $v > 0,
+						'sanitize_callback' => 'absint',
+					],
+					'shift_id'    => [
+						'required'          => true,
+						'type'              => 'integer',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && $v > 0,
+						'sanitize_callback' => 'absint',
+					],
+					'receipt_no'  => [
+						'required'          => true,
+						'type'              => 'string',
+						'validate_callback' => static fn( $v ) => is_string( $v ) && '' !== $v,
+						'sanitize_callback' => 'sanitize_text_field',
+					],
+					'order_id'    => [
+						'required'          => true,
+						'type'              => 'integer',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && $v > 0,
+						'sanitize_callback' => 'absint',
+					],
+					'tenders'     => [ 'required' => false, 'type' => 'array' ],
+				],
+			]
+		);
+	}
+
+	public static function handle_document( \WP_REST_Request $req ) {
+		$body  = $req->get_json_params();
+		$body  = is_array( $body ) ? $body : [];
+		$lines = self::build_lines( $body['lines'] ?? [] );
+		if ( is_wp_error( $lines ) ) {
+			return $lines;
+		}
+		$register_id = (int) $req->get_param( 'register_id' );
+		$register    = Registers::get( $register_id );
+		$context     = [
+			'register_id'    => $register_id,
+			'location_id'    => (int) ( $register['location_id'] ?? Locations::default_id() ),
+			'operator_id'    => \Counter\Pos\Pin::current_operator( $register_id ) ?: get_current_user_id(),
+			'customer_id'    => self::resolve_customer( $body['customer'] ?? [] ),
+			'price_group_id' => (int) ( $body['price_group_id'] ?? 0 ),
+			'order_discount' => wc_format_decimal( $body['cart_discount'] ?? '0', 4 ),
+			'order_tax'      => wc_format_decimal( $body['order_tax'] ?? '0', 4 ),
+			'shipping'       => wc_format_decimal( $body['shipping'] ?? '0', 4 ),
+		];
+		$result = self::create_document( $lines, $context, (string) $req->get_param( 'kind' ) );
+		if ( is_wp_error( $result ) ) {
+			return $result;
+		}
+		return rest_ensure_response( $result );
+	}
+
+	public static function handle_list_documents( \WP_REST_Request $req ) {
+		return rest_ensure_response( self::list_documents( (string) $req->get_param( 'kind' ) ) );
+	}
+
+	public static function handle_finalize( \WP_REST_Request $req ) {
+		$body = $req->get_json_params();
+		$body = is_array( $body ) ? $body : [];
+		return self::finalize(
+			(string) $req->get_param( 'uuid' ),
+			(int) $req->get_param( 'register_id' ),
+			(int) $req->get_param( 'shift_id' ),
+			(string) $req->get_param( 'receipt_no' ),
+			(int) $req->get_param( 'order_id' ),
+			$body
+		);
 	}
 
 	public static function handle( \WP_REST_Request $req ) {
@@ -265,60 +402,247 @@ class Sale {
 				$order_receipt_no = $receipt_no;
 			}
 
-			// 6. Apply stock, tenders, shift_sales — one transaction.
-			// Gated on apply_stock()'s OWN idempotency guard: if it returns
-			// false, this exact order's stock already committed in a prior
-			// attempt, and recording tenders/shift_sales again here would
-			// duplicate them for something that already happened.
-			Db::transaction(
-				function () use ( $order, $body, $shift_id, $current_shift_id, $is_late, $register_id, $order_receipt_no ) {
-					$applied = Channel::apply_stock( $order );
-					if ( $applied ) {
-						$tender_result = \Counter\Pos\Tenders::record( $order, $body['tenders'] ?? [], $current_shift_id, (int) $order->get_customer_id() );
-						if ( is_wp_error( $tender_result ) ) {
-							// Throwing here rolls back the stock this same
-							// transaction just applied — a tender mismatch
-							// must not leave stock decremented for a sale that
-							// didn't actually balance.
-							throw new \RuntimeException( $tender_result->get_error_message() );
-						}
-						self::record_shift_sale( $order, $current_shift_id, $register_id, $order_receipt_no, (string) ( $body['exchange_group_id'] ?? '' ) );
+			// 6-9. Apply stock/tenders/shift_sales, mark completed, challan,
+			// receipt — shared with finalize() below, since from this point
+			// there is no difference between a freshly-built order and a
+			// document that just stopped being one. See finish_sale()'s own
+			// docblock.
+			return self::finish_sale( $order, $body, $shift_id, $current_shift_id, $is_late, $register_id, $order_receipt_no, $uuid );
+		} catch ( \Throwable $e ) {
+			Queue::fail_retry( $uuid, $e->getMessage() );
+			return new \WP_Error( 'cntr_sale_error', $e->getMessage(), [ 'status' => 500 ] );
+		}
+	}
 
-						if ( $is_late ) {
-							self::record_late_sale( $order, $shift_id, $current_shift_id );
-						}
+	/**
+	 * The shared tail of a REAL sale: apply_stock/tenders/shift_sales (one
+	 * transaction, gated on apply_stock()'s own idempotency guard — if it
+	 * returns false, this exact order's stock already committed in a prior
+	 * attempt, and recording tenders/shift_sales again here would duplicate
+	 * them for something that already happened), then 'completed', the
+	 * challan, and the stored receipt. process() uses it for an order
+	 * Builder::build() just built; finalize() (B6) uses it for an order that
+	 * already existed as a 'cntr-draft'/'cntr-quotation' document — either
+	 * way, exactly the same money-moving code runs, exactly once. Throws on
+	 * failure rather than catching anything itself; both callers already
+	 * wrap their own call to this in the same try/catch that turns a throw
+	 * into Queue::fail_retry() + a WP_Error, same as before this method
+	 * existed as a separate thing.
+	 */
+	private static function finish_sale( \WC_Order $order, array $body, int $shift_id, int $current_shift_id, bool $is_late, int $register_id, string $order_receipt_no, string $uuid ): \WP_REST_Response {
+		Db::transaction(
+			function () use ( $order, $body, $shift_id, $current_shift_id, $is_late, $register_id, $order_receipt_no ) {
+				$applied = Channel::apply_stock( $order );
+				if ( $applied ) {
+					$tender_result = \Counter\Pos\Tenders::record( $order, $body['tenders'] ?? [], $current_shift_id, (int) $order->get_customer_id() );
+					if ( is_wp_error( $tender_result ) ) {
+						// Throwing here rolls back the stock this same
+						// transaction just applied — a tender mismatch
+						// must not leave stock decremented for a sale that
+						// didn't actually balance.
+						throw new \RuntimeException( $tender_result->get_error_message() );
+					}
+					self::record_shift_sale( $order, $current_shift_id, $register_id, $order_receipt_no, (string) ( $body['exchange_group_id'] ?? '' ) );
+
+					if ( $is_late ) {
+						self::record_late_sale( $order, $shift_id, $current_shift_id );
 					}
 				}
-			);
+			}
+		);
 
-			// 7. Set status directly — payment_complete() re-enters gateway
-			// machinery Counter does not use, and WooCommerce's stock hooks
-			// are already off, so this transition is inert with respect to
-			// stock either way.
-			$order->set_status( 'completed' );
-			$order->save();
+		// Set status directly — payment_complete() re-enters gateway
+		// machinery Counter does not use, and WooCommerce's stock hooks
+		// are already off, so this transition is inert with respect to
+		// stock either way.
+		$order->set_status( 'completed' );
+		$order->save();
 
-			// 8. Challan serial (P3.5), synchronously, now that the order is
-			// committed — P7.7 lands this. Never passed the offline flag:
-			// Docs\Challan's own docblock is explicit that a challan for an
-			// offline-originated sale is issued through this SAME ordinary
-			// path once the order exists as a normal committed order, never
-			// through a special offline-origin bypass — and an order
-			// reaching this exact line, however many drain retries it took
-			// to get here, is by definition no longer "still offline"; the
-			// server is handling it right now. Under the 'provisional'
-			// policy (§10.1 question 9) that makes this line itself the
-			// sync moment for an offline sale — there is no separate later
-			// step. A challan failure must never fail an already-committed
-			// sale, so this is deliberately never thrown on error.
-			\Counter\Docs\Challan::issue( $order->get_id() );
+		// Challan serial (P3.5), synchronously, now that the order is
+		// committed — P7.7 lands this. Never passed the offline flag:
+		// Docs\Challan's own docblock is explicit that a challan for an
+		// offline-originated sale is issued through this SAME ordinary
+		// path once the order exists as a normal committed order, never
+		// through a special offline-origin bypass — and an order
+		// reaching this exact line, however many drain retries it took
+		// to get here, is by definition no longer "still offline"; the
+		// server is handling it right now. Under the 'provisional'
+		// policy (§10.1 question 9) that makes this line itself the
+		// sync moment for an offline sale — there is no separate later
+		// step. A challan failure must never fail an already-committed
+		// sale, so this is deliberately never thrown on error.
+		\Counter\Docs\Challan::issue( $order->get_id() );
 
-			// 9. Build and store the receipt.
-			$receipt      = self::build_receipt( $order, $order_receipt_no );
-			$receipt_json = wp_json_encode( $receipt );
-			Queue::complete( $uuid, (string) $receipt_json );
+		// Build and store the receipt.
+		$receipt      = self::build_receipt( $order, $order_receipt_no );
+		$receipt_json = wp_json_encode( $receipt );
+		Queue::complete( $uuid, (string) $receipt_json );
 
-			return rest_ensure_response( $receipt );
+		return rest_ensure_response( $receipt );
+	}
+
+	// -- B6: sale documents (draft/quotation) and finalizing one ------------------------
+
+	/** REST-facing kind -> the real Orders\Channel::DOCUMENT_STATUSES key. */
+	const KIND_TO_STATUS = [
+		'draft'     => 'cntr-draft',
+		'quotation' => 'cntr-quotation',
+	];
+
+	/**
+	 * A sale document: built through the EXACT same Orders\Builder pipeline
+	 * as a real sale (pricing/tax/discount/price-group all apply
+	 * identically), left in 'cntr-draft'/'cntr-quotation' status instead of
+	 * ever reaching apply_stock() — see Builder::build()'s own
+	 * 'document_status' handling and Channel::init()'s comment on why that
+	 * status is absent from its stock-applying list. No queue/idempotency
+	 * gating here, unlike a real sale: a duplicate draft is clutter, never a
+	 * financial-correctness bug, so this stays a plain, un-gated create.
+	 *
+	 * @return array|\WP_Error
+	 */
+	public static function create_document( array $lines, array $context, string $kind ) {
+		if ( ! isset( self::KIND_TO_STATUS[ $kind ] ) ) {
+			return new \WP_Error( 'cntr_sale_bad_document_kind', __( 'Unknown document kind.', 'counter' ), [ 'status' => 422 ] );
+		}
+		$order = Builder::build( $lines, $context + [ 'document_status' => self::KIND_TO_STATUS[ $kind ] ] );
+		return [ 'order_id' => $order->get_id() ];
+	}
+
+	/**
+	 * The open (not yet finalized) documents of one kind, newest first, for
+	 * the till's own resume list. 'lines' carries enough per-line detail
+	 * (product identity, qty, unit price, discount) for the terminal to
+	 * rebuild real cart lines on resume — not just a summary — since a
+	 * cashier reviewing a quotation before finalizing it needs to see what
+	 * is actually in it, not a placeholder row.
+	 */
+	public static function list_documents( string $kind ): array {
+		$status = self::KIND_TO_STATUS[ $kind ] ?? '';
+		if ( '' === $status ) {
+			return [];
+		}
+		$orders = wc_get_orders(
+			[ 'status' => $status, 'limit' => 50, 'orderby' => 'date', 'order' => 'DESC', 'return' => 'objects' ]
+		);
+		$rows = [];
+		foreach ( $orders as $order ) {
+			$customer_id   = (int) $order->get_customer_id();
+			$customer_data = $customer_id ? get_userdata( $customer_id ) : false;
+
+			$lines = [];
+			foreach ( $order->get_items( 'line_item' ) as $item ) {
+				$product      = $item->get_product();
+				$qty          = (float) $item->get_quantity();
+				$unit_price   = $qty > 0 ? wc_format_decimal( bcdiv( (string) $item->get_subtotal(), (string) $qty, 8 ), 4 ) : '0.0000';
+				$discount     = wc_format_decimal( bcsub( (string) $item->get_subtotal(), (string) $item->get_total(), 4 ), 4 );
+				$variation_id = $product && $product->is_type( 'variation' ) ? $product->get_id() : 0;
+				$parent_id    = $variation_id ? $product->get_parent_id() : ( $product ? $product->get_id() : 0 );
+				$lines[]      = [
+					'product_id'   => $parent_id,
+					'variation_id' => $variation_id,
+					'name'         => $item->get_name(),
+					'sku'          => $product ? $product->get_sku() : '',
+					'qty'          => (string) $qty,
+					'unit_price'   => $unit_price,
+					'discount'     => $discount,
+				];
+			}
+
+			$rows[] = [
+				'order_id'   => $order->get_id(),
+				'kind'       => $kind,
+				'customer'   => $customer_data ? $customer_data->display_name : '',
+				'total'      => (string) $order->get_total(),
+				'item_count' => count( $lines ),
+				'created_at' => $order->get_date_created() ? $order->get_date_created()->date( 'c' ) : '',
+				'lines'      => $lines,
+			];
+		}
+		return $rows;
+	}
+
+	/**
+	 * Turns an existing 'cntr-draft'/'cntr-quotation' order into a real
+	 * sale. Same Queue::gate() idempotency-by-uuid shape as process() itself
+	 * (test_sale_documents()'s "finalising is idempotent by UUID" check),
+	 * including the identical existing-order-on-retry resume path — a
+	 * finalize that crashed after finish_sale() already flipped the order to
+	 * 'completed' but before Queue::complete() ran must replay against that
+	 * SAME order, never re-check it's still a document (it no longer is) and
+	 * refuse. finish_sale()'s own apply_stock() guard is what makes
+	 * "finalising a draft writes exactly one ledger move" hold even across
+	 * such a replay, not anything special here.
+	 *
+	 * The document's own lines/discount/tax/shipping are used AS THEY WERE
+	 * when saved — finalize() does not re-price or accept edited lines. A
+	 * cashier who needs to change a quotation's contents discards it and
+	 * rings a fresh sale instead (editing a saved document is not built this
+	 * task); this keeps finalize() doing exactly one thing, the same "one
+	 * write per sale" discipline process() itself follows.
+	 *
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public static function finalize( string $uuid, int $register_id, int $shift_id, string $receipt_no, int $order_id, array $body ) {
+		$payload_json = wp_json_encode( $body );
+
+		$gate               = Queue::gate( $uuid, $register_id, $shift_id, (string) $payload_json );
+		$existing_order_id  = 0;
+
+		if ( 'existing' === $gate['status'] ) {
+			$row = $gate['row'];
+			switch ( $row['status'] ?? '' ) {
+				case 'done':
+					return rest_ensure_response( json_decode( (string) $row['receipt_json'], true ) );
+				case 'processing':
+					$resp = rest_ensure_response( [ 'status' => 'processing', 'retry_after' => 2 ] );
+					$resp->set_status( 202 );
+					return $resp;
+				case 'failed_permanent':
+					return new \WP_Error( 'cntr_sale_failed', $row['error'] ?: __( 'Sale failed.', 'counter' ), [ 'status' => 422 ] );
+				case 'queued':
+				case 'failed_retry':
+					$existing_order_id = (int) ( $row['order_id'] ?? 0 );
+					break;
+				default:
+					return new \WP_Error( 'cntr_sale_unknown_state', __( 'Unexpected sale state.', 'counter' ), [ 'status' => 500 ] );
+			}
+		}
+
+		Queue::mark_processing( $uuid );
+
+		try {
+			$shift_check = Shifts::require_open( $register_id );
+			if ( is_wp_error( $shift_check ) ) {
+				Queue::fail_permanent( $uuid, $shift_check->get_error_message() );
+				return $shift_check;
+			}
+			$current_shift_id = (int) $shift_check;
+			$is_late           = $current_shift_id !== $shift_id;
+
+			if ( $existing_order_id ) {
+				$order = wc_get_order( $existing_order_id );
+				if ( ! $order ) {
+					$msg = __( 'Order vanished after a previous attempt.', 'counter' );
+					Queue::fail_permanent( $uuid, $msg );
+					return new \WP_Error( 'cntr_sale_order_missing', $msg, [ 'status' => 500 ] );
+				}
+			} else {
+				$order = wc_get_order( $order_id );
+				if ( ! $order instanceof \WC_Order ) {
+					$msg = __( 'That document no longer exists.', 'counter' );
+					Queue::fail_permanent( $uuid, $msg );
+					return new \WP_Error( 'cntr_sale_document_missing', $msg, [ 'status' => 404 ] );
+				}
+				if ( ! in_array( $order->get_status(), array_keys( \Counter\Orders\Channel::DOCUMENT_STATUSES ), true ) ) {
+					$msg = __( 'This is not an open draft or quotation.', 'counter' );
+					Queue::fail_permanent( $uuid, $msg );
+					return new \WP_Error( 'cntr_sale_not_a_document', $msg, [ 'status' => 409 ] );
+				}
+				Queue::set_order_id( $uuid, $order->get_id() );
+			}
+
+			return self::finish_sale( $order, $body, $shift_id, $current_shift_id, $is_late, $register_id, $receipt_no, $uuid );
 		} catch ( \Throwable $e ) {
 			Queue::fail_retry( $uuid, $e->getMessage() );
 			return new \WP_Error( 'cntr_sale_error', $e->getMessage(), [ 'status' => 500 ] );

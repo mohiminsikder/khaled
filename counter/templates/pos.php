@@ -252,6 +252,20 @@ $bootstrap = [
 		'closeRegisterFailed'      => __( 'Could not close the register — try again.', 'counter' ),
 		'closeSlipTitle'           => __( 'REGISTER CLOSED', 'counter' ),
 		'countedCashLabelShort'    => __( 'Counted', 'counter' ),
+
+		'checkoutBarDraftBtn'      => __( 'Draft', 'counter' ),
+		'checkoutBarQuotationBtn'  => __( 'Quotation', 'counter' ),
+		'checkoutBarSuspendBtn'    => __( 'Suspend', 'counter' ),
+		'checkoutBarDocumentsBtn'  => __( 'Parked', 'counter' ),
+		/* translators: %kind% is "Draft" or "Quotation", %id% is an order number */
+		'documentBanner'           => __( 'Editing %kind% #%id% — Pay to finalize', 'counter' ),
+		'clearDocumentAria'        => __( 'Stop editing this document', 'counter' ),
+		'documentsListTitle'       => __( 'Drafts & quotations', 'counter' ),
+		'draftKindLabel'           => __( 'Draft', 'counter' ),
+		'quotationKindLabel'       => __( 'Quotation', 'counter' ),
+		'resumeDocumentConfirm'    => __( 'This will replace the current cart with this document. Continue?', 'counter' ),
+		'documentSaveFailed'       => __( 'Could not save this document — try again.', 'counter' ),
+		'finalizeOfflineFailed'    => __( 'Could not reach the server to finalize this sale — try again once online.', 'counter' ),
 	],
 ];
 

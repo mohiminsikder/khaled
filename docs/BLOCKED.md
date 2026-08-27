@@ -151,4 +151,29 @@ this full-suite run was mistakenly attempted. **Restating, more firmly this time
 `scripts/deploy.sh selftest` / full-suite runs against peapip.com production for the remainder of this
 session, full stop — per-method reflection probes and the local DOM harness only.
 
+**Another concrete instance, found during B6:** re-verifying `test_order_discount()` after unrelated
+B6 changes (a plain sanity re-check of a shared file, `Orders/Builder.php`) turned up FAIL where it had
+been clean twice before: `Could not record the shift sale: Duplicate entry 'SELFTEST-ORDDISC-discounted'
+for key 'receipt_no'`. Root cause: the exact same crashed-run-never-reaches-cleanup() mechanism this
+file already documents — the mistaken `scripts/deploy.sh selftest` run above (B4's self-correction
+entry) executed `test_order_discount()` as part of the normal suite before crashing later at
+`test_payment_accounts()`, so `test_order_discount()`'s own fixture receipt_no
+(`'SELFTEST-ORDDISC-' . $tag_suffix`, a FIXED string, not a per-run-unique one) was left behind in
+`cntr_shift_sales` forever, and every later re-run of the same test now collides against it on that
+column's `UNIQUE KEY`. **Fixed this time** (unlike the `test_payment_accounts()` instance above, left unfixed as scope creep)
+because the fix is in the fragile TEST's own fixture, not a production data write: `test_x_report()`
+(B5, same fixed-string pattern, `'SELFTEST-XREPORT-1'`) now appends a random suffix to its receipt_no.
+`test_order_discount()` needed a second pass — the first attempt appended a suffix onto the existing
+`'SELFTEST-ORDDISC-' . $tag_suffix` string and immediately hit a DIFFERENT error, `receipt_no... may be
+too long`: `cntr_shift_sales.receipt_no` is `varchar(32)`, and `'SELFTEST-ORDDISC-discounted'` alone is
+already 27 of those 32 characters, leaving no room for a suffix long enough to matter. Fixed by dropping
+`$tag_suffix` and going wholly random instead (`'SELFTEST-OD-' . <8 random chars>`, well under the
+limit) — the same lesson as the `test_payment_accounts()`/`SELFTESTPAY` instance in one sense
+(uniqueness matters) but a reminder that a fixed-width column is itself a constraint any such fix has to
+respect, not just an afterthought. This makes both tests permanently immune to whatever debris an
+earlier crashed run leaves behind, regardless of whether that debris is ever swept — it does not touch
+or clean up the actual orphaned rows already on peapip.com, which still need the same human sweep this
+file has asked for since A1. Re-verified clean after the fix: `test_order_discount()` 3/3,
+`test_x_report()` 7/7.
+
 _(nothing else blocked yet)_

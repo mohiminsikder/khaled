@@ -196,6 +196,19 @@ class Builder {
 
 		Money::apply_rounding( $order );
 
+		// B6 — a sale document ('cntr-draft'/'cntr-quotation', Orders\Channel's
+		// own DOCUMENT_STATUSES) is built through this EXACT same pricing/tax/
+		// discount pipeline as a real sale, then simply left in a status
+		// Channel::init() never wires to apply_stock() — nothing below this
+		// point needs to know or care that it isn't a real sale yet. Absent
+		// (every caller before this task), $order->save() below persists
+		// whatever WooCommerce's own default new-order status already is,
+		// exactly as before this parameter existed; Rest\Sale::process() sets
+		// 'completed' itself afterward, same as always.
+		if ( isset( $context['document_status'] ) && '' !== $context['document_status'] ) {
+			$order->set_status( (string) $context['document_status'] );
+		}
+
 		if ( null !== $before_save ) {
 			try {
 				$before_save( $order );

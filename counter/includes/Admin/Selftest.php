@@ -206,6 +206,7 @@ class Selftest {
 		$this->test_price_group_at_till();
 		$this->test_order_discount();
 		$this->test_x_report();
+		$this->test_sale_documents();
 		$this->test_payment_accounts();
 		$this->test_rollup();
 		$this->test_reports_channel();
@@ -6498,7 +6499,21 @@ class Selftest {
 				'tenders'        => [ [ 'method' => 'card', 'amount' => bcsub( '100.0000', $order_discount, 4 ) ] ],
 				'cart_discount'  => $order_discount,
 			];
-			$result   = \Counter\Rest\Sale::process( $uuid, $register_id, $shift_id, 'SELFTEST-ORDDISC-' . $tag_suffix, $body );
+			// Wholly random, not 'SELFTEST-ORDDISC-' . $tag_suffix — found
+			// live (B6): a crashed full-suite run that never reached its own
+			// cleanup() left a prior 'SELFTEST-ORDDISC-discounted' shift_sales
+			// row (UNIQUE KEY receipt_no) permanently orphaned, which then
+			// collided with THIS fixed string on every later, otherwise-
+			// healthy re-run — the exact "long tail of downstream symptoms"
+			// docs/BLOCKED.md already describes, now hitting this test by
+			// name. $tag_suffix is dropped entirely rather than appended
+			// (cntr_shift_sales.receipt_no is varchar(32) — 'SELFTEST-
+			// ORDDISC-discounted' is already 27 of those 32 on its own, no
+			// room left for a suffix long enough to matter); a random one
+			// makes every invocation immune to whatever debris an earlier
+			// crashed run left behind, the same fix test_sale_documents()
+			// (B6) already uses for its own.
+			$result   = \Counter\Rest\Sale::process( $uuid, $register_id, $shift_id, 'SELFTEST-OD-' . substr( wp_generate_password( 8, false ), 0, 8 ), $body );
 			$data     = $result instanceof \WP_REST_Response ? $result->get_data() : ( $result instanceof \WP_Error ? [ 'error' => $result->get_error_message() ] : $result );
 			$order_id = (int) ( $data['order_id'] ?? 0 );
 			if ( $order_id ) {
@@ -6591,10 +6606,15 @@ class Selftest {
 		);
 
 		// A ৳300 sale (qty 3 @ ৳100): cash 250 + card 100 tendered = 350,
-		// less 50 change = 300, matching the order total exactly.
-		$order = \Counter\Orders\Builder::build(
+		// less 50 change = 300, matching the order total exactly. A random
+		// suffix on the receipt_no (B6's own test_order_discount() fix, same
+		// reasoning) — the shift_sales insert below has a UNIQUE KEY on it,
+		// and a fixed string would collide with an earlier crashed run's
+		// own never-cleaned-up debris exactly the way that fix describes.
+		$receipt_no = 'SELFTEST-XREPORT-1-' . substr( wp_generate_password( 6, false ), 0, 6 );
+		$order      = \Counter\Orders\Builder::build(
 			[ [ 'product' => $product, 'qty' => 3, 'subtotal' => '300.00', 'total' => '300.00' ] ],
-			[ 'register_id' => $register_id, 'shift_id' => $shift_id, 'location_id' => $main_id, 'operator_id' => get_current_user_id(), 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-XREPORT-1' ]
+			[ 'register_id' => $register_id, 'shift_id' => $shift_id, 'location_id' => $main_id, 'operator_id' => get_current_user_id(), 'uuid' => wp_generate_uuid4(), 'receipt_no' => $receipt_no ]
 		);
 		$this->order_fixture_ids[] = $order->get_id();
 		\Counter\Orders\Channel::apply_stock( $order );
@@ -6633,7 +6653,7 @@ class Selftest {
 				'refund_id'         => 0,
 				'kind'              => 'sale',
 				'exchange_group_id' => '',
-				'receipt_no'        => 'SELFTEST-XREPORT-1',
+				'receipt_no'        => $receipt_no,
 				'total'             => '300.0000',
 				'created_at'        => Db::now(),
 			]
@@ -6731,6 +6751,146 @@ class Selftest {
 			'test_x_report: a closed shift is immutable',
 			$shift_after_second_attempt && '165.0000' === $shift_after_second_attempt['counted_cash'] && '-5.0000' === $shift_after_second_attempt['variance'],
 			wp_json_encode( $shift_after_second_attempt )
+		);
+	}
+
+	// -- B6: test_sale_documents() -- 6 of 8 checks (2 are DOM-only) -------------------
+
+	/**
+	 * COUNTERV2.md names 8 checks; the last two ("a suspended cart survives
+	 * a reload," "a suspended cart reserves nothing") describe Suspend —
+	 * unchanged Phase F client-side hold/resume code (assets/pos.js,
+	 * IndexedDB-only, never a REST call) that this PHP suite has no way to
+	 * observe. Those two are DOM-only assertions in tests/pos-dom.mjs
+	 * instead; the 6 here are everything actually backend-observable:
+	 * Draft/Quotation never touching the ledger or the rollup, and
+	 * finalising one being both correct and idempotent.
+	 */
+	private function test_sale_documents(): void {
+		global $wpdb;
+		$moves_table = Install::table( 'stock_moves' );
+
+		// A dedicated, never-reused location — same isolation reasoning
+		// test_rollup()'s own fixture uses: sales_daily is keyed by
+		// day/channel/location, so this test's own "neither appears" check
+		// can't be muddied by another concurrently-running test's real
+		// same-day sales at the shared default location.
+		$location_id = \Counter\Stock\Locations::create(
+			[ 'name' => 'Counter Selftest Fixture Sale Documents Location', 'code' => 'CNTR-SELFTEST-SALEDOC-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->location_fixture_ids[] = $location_id;
+
+		$register_id = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Sale Documents Register', 'location_id' => $location_id, 'prefix' => 'ZD' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->register_fixture_ids[] = $register_id;
+		$shift_id = \Counter\Pos\Shifts::open( $register_id, get_current_user_id(), '0.00' );
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture Sale Document Product' );
+		$product->set_regular_price( '100.00' );
+		$product->set_manage_stock( true );
+		$product->set_stock_quantity( 0 );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save();
+		$product_id                  = $product->get_id();
+		$this->product_fixture_ids[] = $product_id;
+
+		Db::transaction(
+			function () use ( $product_id, $location_id ) {
+				\Counter\Stock\Ledger::move(
+					[ 'product_id' => $product_id, 'variation_id' => 0, 'location_id' => $location_id, 'qty_delta' => '20', 'reason' => 'opening', 'ref_type' => 'selftest_sale_documents', 'ref_id' => 0 ]
+				);
+			}
+		);
+
+		$context = [
+			'register_id' => $register_id,
+			'location_id' => $location_id,
+			'operator_id' => get_current_user_id(),
+			'customer_id' => 0,
+		];
+		$lines = [ [ 'product' => $product, 'qty' => 2, 'subtotal' => '200.00', 'total' => '200.00' ] ];
+
+		$draft_result = \Counter\Rest\Sale::create_document( $lines, $context, 'draft' );
+		$draft_id     = (int) ( $draft_result['order_id'] ?? 0 );
+		if ( $draft_id ) {
+			$this->order_fixture_ids[] = $draft_id;
+		}
+		$quotation_result = \Counter\Rest\Sale::create_document( $lines, $context, 'quotation' );
+		$quotation_id      = (int) ( $quotation_result['order_id'] ?? 0 );
+		if ( $quotation_id ) {
+			$this->order_fixture_ids[] = $quotation_id;
+		}
+
+		// 1. A draft writes no ledger move.
+		$draft_moves = $draft_id ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$moves_table} WHERE ref_type = 'order' AND ref_id = %d", $draft_id ) ) : -1;
+		$this->check(
+			'test_sale_documents: a draft writes no ledger move',
+			$draft_id > 0 && 'cntr-draft' === wc_get_order( $draft_id )->get_status() && 0 === $draft_moves,
+			wp_json_encode( $draft_result ) . " moves={$draft_moves}"
+		);
+
+		// 2. A quotation writes none.
+		$quotation_moves = $quotation_id ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$moves_table} WHERE ref_type = 'order' AND ref_id = %d", $quotation_id ) ) : -1;
+		$this->check(
+			'test_sale_documents: a quotation writes none',
+			$quotation_id > 0 && 'cntr-quotation' === wc_get_order( $quotation_id )->get_status() && 0 === $quotation_moves,
+			wp_json_encode( $quotation_result ) . " moves={$quotation_moves}"
+		);
+
+		// 3. Neither appears in sales_daily — nothing has ever called
+		// apply_stock() (the only writer of a sales_daily row) for this
+		// fixture location at all yet.
+		$sales_daily_table = Install::table( 'sales_daily' );
+		$sales_daily_rows  = (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$sales_daily_table} WHERE location_id = %d", $location_id ) );
+		$this->check(
+			'test_sale_documents: neither appears in sales_daily',
+			0 === $sales_daily_rows,
+			"rows={$sales_daily_rows}"
+		);
+
+		// 4. Neither appears in P&L — same underlying source (sales_daily),
+		// checked through the actual report function rather than the raw
+		// table a second time, as an administrator so cost/margin keys exist.
+		$original_user_id_sd = get_current_user_id();
+		$admins_sd              = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_sd ) ) {
+			wp_set_current_user( (int) $admins_sd[0] );
+		}
+		$today = wp_date( 'Y-m-d' );
+		$pnl   = \Counter\Reports\Expenses::profit_and_loss( [ 'from' => $today, 'to' => $today, 'location_id' => $location_id ] );
+		wp_set_current_user( $original_user_id_sd );
+		$this->check(
+			'test_sale_documents: neither appears in P&L',
+			isset( $pnl['revenue'] ) && 0 === bccomp( $pnl['revenue'], '0', 4 ),
+			wp_json_encode( $pnl )
+		);
+
+		// 5. Finalising a draft writes exactly one ledger move — one line,
+		// one product, one FIFO consumption.
+		$uuid       = wp_generate_uuid4();
+		$receipt_no = 'SELFTEST-SALEDOC-' . substr( $uuid, 0, 8 );
+		$body       = [ 'tenders' => [ [ 'method' => 'card', 'amount' => '200.0000' ] ] ];
+		$finalize_1 = \Counter\Rest\Sale::finalize( $uuid, $register_id, $shift_id, $receipt_no, $draft_id, $body );
+		$moves_after_finalize = $draft_id ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$moves_table} WHERE ref_type = 'order' AND ref_id = %d AND reason IN ('sale','sale_online')", $draft_id ) ) : -1;
+		$this->check(
+			'test_sale_documents: finalising a draft writes exactly one ledger move',
+			! ( $finalize_1 instanceof \WP_Error ) && 'completed' === wc_get_order( $draft_id )->get_status() && 1 === $moves_after_finalize,
+			( $finalize_1 instanceof \WP_Error ? $finalize_1->get_error_message() : 'ok' ) . " moves={$moves_after_finalize}"
+		);
+
+		// 6. Finalising is idempotent by UUID — a second call with the
+		// SAME uuid replays the stored receipt rather than re-applying
+		// stock a second time.
+		$finalize_2           = \Counter\Rest\Sale::finalize( $uuid, $register_id, $shift_id, $receipt_no, $draft_id, $body );
+		$moves_after_replay   = $draft_id ? (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$moves_table} WHERE ref_type = 'order' AND ref_id = %d AND reason IN ('sale','sale_online')", $draft_id ) ) : -1;
+		$data_1               = $finalize_1 instanceof \WP_REST_Response ? $finalize_1->get_data() : null;
+		$data_2               = $finalize_2 instanceof \WP_REST_Response ? $finalize_2->get_data() : null;
+		$this->check(
+			'test_sale_documents: finalising is idempotent by UUID',
+			null !== $data_1 && null !== $data_2 && ( $data_1['order_id'] ?? null ) === ( $data_2['order_id'] ?? null ) && 1 === $moves_after_replay,
+			wp_json_encode( [ 'order_id_1' => $data_1['order_id'] ?? null, 'order_id_2' => $data_2['order_id'] ?? null, 'moves_after_replay' => $moves_after_replay ] )
 		);
 	}
 

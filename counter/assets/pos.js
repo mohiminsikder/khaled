@@ -216,6 +216,19 @@
 			closeRegisterFailed: 'Could not close the register — try again.',
 			closeSlipTitle: 'REGISTER CLOSED',
 			countedCashLabelShort: 'Counted',
+
+			checkoutBarDraftBtn: 'Draft',
+			checkoutBarQuotationBtn: 'Quotation',
+			checkoutBarSuspendBtn: 'Suspend',
+			checkoutBarDocumentsBtn: 'Parked',
+			documentBanner: 'Editing %kind% #%id% — Pay to finalize',
+			clearDocumentAria: 'Stop editing this document',
+			documentsListTitle: 'Drafts & quotations',
+			draftKindLabel: 'Draft',
+			quotationKindLabel: 'Quotation',
+			resumeDocumentConfirm: 'This will replace the current cart with this document. Continue?',
+			documentSaveFailed: 'Could not save this document — try again.',
+			finalizeOfflineFailed: 'Could not reach the server to finalize this sale — try again once online.',
 		},
 		CFG.strings || {}
 	);
@@ -1066,13 +1079,31 @@
 		orderDiscount: '0', // B4 — a flat amount, same shape as a line's own l.discount
 		orderTax: '0',
 		shipping: '0',
+		// B6 — set only while the cart holds a RESUMED draft/quotation: Pay
+		// then finalizes THIS order id (POST /sale/finalize) instead of
+		// building a brand new one (POST /sale). documentKind is display-only
+		// (the banner naming which one it is).
+		documentOrderId: 0,
+		documentKind: '',
 	};
 
-	/** B4 — a fresh sale starts with none of these; called everywhere the cart itself already resets (sale completed, held, or voided). */
+	/**
+	 * B4 — a fresh sale starts with none of these; called everywhere the
+	 * cart itself already resets (sale completed, held, or voided). B6 folds
+	 * documentOrderId/documentKind in too, same reasoning: whichever of
+	 * those four events just happened, a resumed draft/quotation is no
+	 * longer "the thing in the cart" — Suspend after a resume deliberately
+	 * does NOT also finalize or delete the original document; it just stops
+	 * being loaded, and stays listed exactly as it was for whoever opens it
+	 * next (not built further than that this task — see the Documents list
+	 * itself for the same scoping note).
+	 */
 	function resetOrderAdjustments() {
 		cart.orderDiscount = '0';
 		cart.orderTax = '0';
 		cart.shipping = '0';
+		cart.documentOrderId = 0;
+		cart.documentKind = '';
 	}
 
 	/**
@@ -1221,6 +1252,16 @@
 	// -- Sale submission ----------------------------------------------------------
 
 	async function submitSale(tenders) {
+		// B6 — a resumed draft/quotation finalizes instead of building a
+		// fresh order. Deliberately its own path, not a branch woven through
+		// the rest of this function: the offline-outbox queue below replays
+		// exclusively through POST /sale (Pos\Queue::recover_row() calls
+		// Rest\Sale::process(), never finalize()), so a finalize cannot be
+		// queued the same way — see submitFinalize()'s own docblock.
+		if (cart.documentOrderId) {
+			return submitFinalize(tenders);
+		}
+
 		// P7.6 — checked live, never against a cached flag: the outbox may
 		// have drained (a real sync) since the last time anything looked.
 		// Refuses outright, before the network is even tried and before
@@ -1311,6 +1352,50 @@
 			cart.customer = emptyCustomer();
 			applyPriceOverrides([], 0); // B2 — the next sale starts at the register's own price
 			resetOrderAdjustments(); // B4 — order-level adjustments reset with the cart
+			render();
+		}
+		return receipt;
+	}
+
+	/**
+	 * B6 — turns the resumed draft/quotation in cart.documentOrderId into a
+	 * real sale via POST /sale/finalize. No offline queue: see submitSale()'s
+	 * own comment on why finalize can't replay through the same outbox a
+	 * fresh sale does. A network failure here is surfaced with an alert
+	 * (same pattern openReturnFlow()'s own offline case already uses)
+	 * instead of silently doing nothing, since there is no queued-receipt
+	 * fallback to reassure the cashier the sale is still in flight.
+	 */
+	async function submitFinalize(tenders) {
+		const uuid = uuid4();
+		const receiptNo = nextReceiptNo();
+		const body = {
+			uuid,
+			register_id: CFG.registerId,
+			shift_id: CFG.shiftId,
+			receipt_no: receiptNo,
+			order_id: cart.documentOrderId,
+			tenders,
+		};
+		let res = null;
+		try {
+			res = await fetch(`${CFG.restUrl}/sale/finalize`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'X-CNTR-Register': String(CFG.registerId || '') },
+				credentials: 'same-origin',
+				body: JSON.stringify(body),
+			});
+		} catch (e) {
+			alert(STRINGS.finalizeOfflineFailed);
+			return { error: true };
+		}
+		const receipt = await res.json();
+		if (res.ok) {
+			if (receipt.receipt_html) printReceipt(receipt.receipt_html);
+			cart.lines = [];
+			cart.customer = emptyCustomer();
+			applyPriceOverrides([], 0);
+			resetOrderAdjustments();
 			render();
 		}
 		return receipt;
@@ -1668,6 +1753,160 @@
 		applyPriceOverrides([], 0); // the next walk-up customer starts at the register's own price
 		resetOrderAdjustments(); // B4 — order-level adjustments reset with the cart
 		render();
+	}
+
+	// -- B6: draft/quotation documents ---------------------------------------------
+	//
+	// A sale document is a REAL WooCommerce order server-side (Rest\Sale::
+	// create_document()) — unlike Suspend above, which never leaves the
+	// browser. Saving one clears the cart the same way Suspend does; there
+	// is no client-side record of it at all beyond cart.documentOrderId
+	// while one is actively loaded for editing/paying.
+
+	async function saveDocument(kind) {
+		if (!cart.lines.length) return;
+		const body = {
+			kind,
+			register_id: CFG.registerId,
+			customer: cart.customer,
+			lines: cart.lines.map((l) => ({
+				product_id: l.product.variation_id ? l.product.parent_id : l.product.id,
+				variation_id: l.product.variation_id || 0,
+				qty: l.qty,
+				unit_price: l.unitPrice,
+				discount: l.discount,
+			})),
+			cart_discount: cart.orderDiscount || '0.0000',
+			order_tax: cart.orderTax || '0.0000',
+			shipping: cart.shipping || '0.0000',
+			price_group_id: cart.priceGroupId || 0,
+		};
+		try {
+			const res = await fetch(`${CFG.restUrl}/sale/document`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce, 'X-CNTR-Register': String(CFG.registerId || '') },
+				credentials: 'same-origin',
+				body: JSON.stringify(body),
+			});
+			if (!res.ok) throw new Error('bad status');
+		} catch (e) {
+			alert(STRINGS.documentSaveFailed);
+			return;
+		}
+		cart.lines = [];
+		cart.customer = emptyCustomer();
+		cart.selectedIdx = null;
+		applyPriceOverrides([], 0);
+		resetOrderAdjustments();
+		render();
+	}
+
+	let documentsListState = null; // { kind: 'draft'|'quotation', rows } | { error: true }
+
+	async function openDocumentsList() {
+		documentsListState = { rows: [] };
+		renderDocumentsList();
+		try {
+			const [draftsRes, quotationsRes] = await Promise.all([
+				fetch(`${CFG.restUrl}/sale/documents?kind=draft`, { headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin' }),
+				fetch(`${CFG.restUrl}/sale/documents?kind=quotation`, { headers: { 'X-WP-Nonce': CFG.nonce }, credentials: 'same-origin' }),
+			]);
+			const drafts = draftsRes.ok ? await draftsRes.json() : [];
+			const quotations = quotationsRes.ok ? await quotationsRes.json() : [];
+			documentsListState = { rows: [...drafts, ...quotations] };
+		} catch (e) {
+			documentsListState = { error: true };
+		}
+		renderDocumentsList();
+	}
+
+	function closeDocumentsList() {
+		documentsListState = null;
+		const root = document.getElementById('cntr-documents');
+		if (root) {
+			root.hidden = true;
+			root.innerHTML = '';
+		}
+		restoreFocus();
+	}
+
+	/**
+	 * Resuming loads the document's own lines/customer/adjustments back into
+	 * the cart for review, same shape resumeHeldSale() already uses — but
+	 * does NOT re-fetch prices or edit anything server-side yet; Pay is what
+	 * actually finalizes it (submitSale()'s own cart.documentOrderId branch).
+	 * Editing the resumed cart's lines before paying is not built this task
+	 * (finalize() always uses the document's ORIGINAL lines) — see
+	 * Rest\Sale::finalize()'s own docblock for the reasoning.
+	 */
+	async function resumeDocument(orderId, kind, row) {
+		if (!row) return;
+		if (cart.lines.length && !confirm(STRINGS.resumeDocumentConfirm)) return;
+		closeDocumentsList();
+		// Real lines from the document itself (Rest\Sale::list_documents()),
+		// not a placeholder row — a cashier reviewing a quotation before
+		// finalizing it needs to see what's actually in it. No unit-switching
+		// (units: []) and no live stock/price lookup for these — see
+		// resumeDocument()'s own docblock on why finalize() never re-prices.
+		cart.lines = (row.lines || []).map((l) => ({
+			product: {
+				id: l.variation_id || l.product_id,
+				variation_id: l.variation_id || 0,
+				parent_id: l.product_id,
+				name: l.name,
+				sku: l.sku || '',
+				barcode: '',
+				units: [],
+			},
+			qty: l.qty,
+			unitPrice: l.unit_price,
+			basePrice: l.unit_price,
+			discount: l.discount,
+			note: '',
+		}));
+		cart.customer = emptyCustomer();
+		cart.selectedIdx = null;
+		cart.documentOrderId = orderId;
+		cart.documentKind = kind;
+		render();
+	}
+
+	function renderDocumentsList() {
+		const root = document.getElementById('cntr-documents');
+		if (!root || !documentsListState) return;
+		const rows = documentsListState.rows || [];
+		root.innerHTML = `
+			<div class="cntr-modal-box">
+				<h2>${STRINGS.documentsListTitle}</h2>
+				${
+					documentsListState.error
+						? `<p class="cntr-inline-warning">${STRINGS.documentSaveFailed}</p>`
+						: !rows.length
+							? `<p>${STRINGS.noneLabel}</p>`
+							: `<ul class="cntr-held-list">
+								${rows
+									.map(
+										(r) => `<li data-id="${r.order_id}" data-kind="${r.kind}" class="cntr-held-row">
+											<span class="cntr-held-customer">${escapeHtml('draft' === r.kind ? STRINGS.draftKindLabel : STRINGS.quotationKindLabel)} #${r.order_id}${r.customer ? ' — ' + escapeHtml(r.customer) : ''}</span>
+											<span class="cntr-held-count">${escapeHtml(String(r.item_count))} ${escapeHtml(1 === r.item_count ? STRINGS.itemSingular : STRINGS.itemPlural)}</span>
+											<span class="cntr-held-total">${formatMoney(r.total)}</span>
+										</li>`
+									)
+									.join('')}
+							</ul>`
+				}
+				<div class="cntr-modal-actions">
+					<button type="button" id="cntr-documents-cancel">${STRINGS.cancelBtn}</button>
+				</div>
+			</div>
+		`;
+		root.hidden = false;
+		root.querySelectorAll('.cntr-held-row').forEach((li) => {
+			const row = rows.find((r) => String(r.order_id) === li.dataset.id && r.kind === li.dataset.kind);
+			li.addEventListener('click', () => resumeDocument(parseInt(li.dataset.id, 10), li.dataset.kind, row));
+		});
+		const cancelBtn = document.getElementById('cntr-documents-cancel');
+		if (cancelBtn) cancelBtn.addEventListener('click', closeDocumentsList);
 	}
 
 	let heldListState = null; // {}
@@ -3404,6 +3643,20 @@
 							: ''
 					}
 				</div>
+				${
+					cart.documentOrderId
+						? `<div class="cntr-document-banner">
+							<span>${fmt(STRINGS.documentBanner, { kind: 'draft' === cart.documentKind ? STRINGS.draftKindLabel : STRINGS.quotationKindLabel, id: cart.documentOrderId })}</span>
+							<button type="button" id="cntr-document-clear" aria-label="${STRINGS.clearDocumentAria}">&times;</button>
+						</div>`
+						: ''
+				}
+				<div class="cntr-checkout-bar">
+					<button type="button" id="cntr-checkout-draft">${STRINGS.checkoutBarDraftBtn}</button>
+					<button type="button" id="cntr-checkout-quotation">${STRINGS.checkoutBarQuotationBtn}</button>
+					<button type="button" id="cntr-checkout-suspend">${STRINGS.checkoutBarSuspendBtn}</button>
+					<button type="button" id="cntr-checkout-documents">${STRINGS.checkoutBarDocumentsBtn}</button>
+				</div>
 				<footer class="cntr-pos-keybar">
 					${KEY_BAR.map(
 						(k) => `<span class="cntr-key${k.cap && CFG.caps && !CFG.caps[k.cap] ? ' cntr-key-disabled' : ''}"><b>${k.key}</b> ${escapeHtml(k.label)}</span>`
@@ -3421,6 +3674,7 @@
 			<div id="cntr-order-adjust" class="cntr-modal" hidden></div>
 			<div id="cntr-xreport" class="cntr-modal" hidden></div>
 			<div id="cntr-close-register" class="cntr-modal" hidden></div>
+			<div id="cntr-documents" class="cntr-modal" hidden></div>
 		`;
 
 		const search = document.getElementById('cntr-search');
@@ -3506,6 +3760,25 @@
 		if (xReportBtn) xReportBtn.addEventListener('click', openXReport);
 		const closeRegisterBtn = document.getElementById('cntr-close-register-btn');
 		if (closeRegisterBtn) closeRegisterBtn.addEventListener('click', openCloseRegister);
+
+		// B6 — checkout bar: Draft/Quotation/Suspend, the Parked list, and
+		// clearing out of a resumed document without paying or parking it.
+		const draftBtn = document.getElementById('cntr-checkout-draft');
+		if (draftBtn) draftBtn.addEventListener('click', () => saveDocument('draft'));
+		const quotationBtn = document.getElementById('cntr-checkout-quotation');
+		if (quotationBtn) quotationBtn.addEventListener('click', () => saveDocument('quotation'));
+		const suspendBtn = document.getElementById('cntr-checkout-suspend');
+		if (suspendBtn) suspendBtn.addEventListener('click', holdSale);
+		const documentsBtn = document.getElementById('cntr-checkout-documents');
+		if (documentsBtn) documentsBtn.addEventListener('click', openDocumentsList);
+		const documentClearBtn = document.getElementById('cntr-document-clear');
+		if (documentClearBtn) {
+			documentClearBtn.addEventListener('click', () => {
+				cart.documentOrderId = 0;
+				cart.documentKind = '';
+				render();
+			});
+		}
 
 		// B1 — the tile grid: a category chip narrows gridProducts(), a tile
 		// tap adds 1 unit the same way a search-result click does.
