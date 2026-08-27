@@ -31,6 +31,47 @@ class Dashboard {
 			'yesterday' => self::yesterday( $location_id ),
 			'low_stock' => self::low_stock( $location_id ),
 			'shifts'    => self::shifts_last_night( $location_id ),
+			'trending'  => self::trending( $location_id ),
+		];
+	}
+
+	/**
+	 * D2 — "what sells and when," over the last 7 shop-local days (today
+	 * inclusive): a single day is too small a sample for "trending" to mean
+	 * anything, unlike yesterday()'s own single-day question above.
+	 * Reports::margin_by_product() already does the units/revenue/margin
+	 * computation this needs (documented there as a deliberate approximation
+	 * — good enough for "what's worth the shelf space," not a P&L); this
+	 * just asks for it twice, sorted two ways, rather than adding a second
+	 * query that would inevitably drift from the first.
+	 */
+	private static function trending( int $location_id, int $days = 7, int $limit = 5 ): array {
+		$to   = wp_date( 'Y-m-d' );
+		$from = gmdate( 'Y-m-d', strtotime( $to . " -{$days} days" ) );
+
+		$products = Reports::margin_by_product(
+			[
+				'location_id' => $location_id,
+				'date_from'   => Rollup::local_day_start_utc( $from ),
+				'date_to'     => Rollup::local_day_end_utc( $to ),
+			]
+		);
+
+		$by_units = $products;
+		usort( $by_units, static fn( $a, $b ) => bccomp( $b['qty_sold'], $a['qty_sold'], 4 ) );
+		$by_revenue = $products;
+		usort( $by_revenue, static fn( $a, $b ) => bccomp( $b['revenue'] ?? '0', $a['revenue'] ?? '0', 4 ) );
+
+		$peak_hours = Reports::run( 'sales_by_hour', [ 'from' => $from, 'to' => $to, 'location_id' => $location_id ] );
+		$peak_hours = is_wp_error( $peak_hours ) ? [] : $peak_hours;
+		usort( $peak_hours, static fn( $a, $b ) => bccomp( $b['qty_sold'], $a['qty_sold'], 4 ) );
+
+		return [
+			'from'        => $from,
+			'to'          => $to,
+			'top_units'   => array_slice( $by_units, 0, $limit ),
+			'top_revenue' => array_slice( $by_revenue, 0, $limit ),
+			'peak_hours'  => array_slice( $peak_hours, 0, 3 ),
 		];
 	}
 

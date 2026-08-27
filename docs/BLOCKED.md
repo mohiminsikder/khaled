@@ -227,4 +227,25 @@ as here) until either that sweep happens or a genuine full-suite `Selftest::run(
 the debris sweep). Only the bulk historical-debris deletion was declined; the small, scoped deletions of
 rows THIS session's own probing created were approved and applied.
 
+**Another concrete instance, found during D1/D2:** both `test_hourly_rollup()` and
+`test_trending()` (new this session) hit the exact same "second run collides with the first run's
+own never-cleaned-up location" mechanism this file has documented since A1 — confirmed by checking
+`wp_cntr_locations`, `wp_cntr_batches`, `wp_cntr_stock_moves` directly each time and deleting the
+handful of small, explicitly-identified orphan rows (never a bulk sweep). One instance was worse
+than cosmetic: `test_trending()`'s `Locations::create()` call returned a `WP_Error` (the name
+collision), and the test's own code — matching this file's own pre-existing style elsewhere, e.g.
+`test_rollup()` — never guards that return value before passing it on; `(int) WP_Error` casts to
+`1`, so a chain of fixture creates (register, batches, an order) silently landed on the SHOP'S REAL
+DEFAULT LOCATION instead of erroring. Confirmed no real product/order/stock data was touched (the
+fixture products and orders were still correctly cleaned up by their own exact-id tracking; only 3
+batch rows and 5 stock_move rows at location_id=1, referencing already-deleted fixture products,
+needed manual deletion) — but this is a sharper version of the existing risk than "a test fails,"
+worth a human knowing about specifically: **an unguarded `Locations::create()` return value in a
+self-test, combined with the accumulated fixture debris this file already tracks, can write real
+fixture data against the shop's actual default location.** Also hit, not touched: `test_reports_channel()`
+fails the identical way on its own pre-existing fixture location, unrelated to this session's D1/D2
+changes — confirmed by direct sanity checks of `Reports::margin_by_product()` and
+`Reports::run('sales_by_product')` against real data, both correct, before moving on rather than
+chasing every already-broken test in the suite one at a time.
+
 _(nothing else blocked yet)_

@@ -79,6 +79,67 @@ class Dashboard {
 				</div>
 
 			</div>
+
+			<?php self::render_trending_panel( $data['trending'] ); ?>
+
+		</div>
+		<?php
+	}
+
+	/**
+	 * D2 — "what sells and when," over the same 7-day window
+	 * Reports\Dashboard::trending() computed. Units always shown;
+	 * revenue-flavoured panels only when the row itself carries that key,
+	 * the same "absence means not permitted" contract every other
+	 * cost-gated figure on this screen already follows.
+	 */
+	private static function render_trending_panel( array $trending ): void {
+		?>
+		<div class="cntr-dash-panels" style="display:flex;gap:24px;flex-wrap:wrap;margin-top:24px;">
+
+			<div class="cntr-dash-panel postbox" style="padding:16px;min-width:260px;">
+				<h2><?php esc_html_e( 'Top sellers by units', 'counter' ); ?></h2>
+				<p class="description"><?php echo esc_html( sprintf( /* translators: 1: start date, 2: end date */ __( '%1$s to %2$s', 'counter' ), $trending['from'], $trending['to'] ) ); ?></p>
+				<?php if ( empty( $trending['top_units'] ) ) : ?>
+					<p><?php esc_html_e( 'No sales in this window.', 'counter' ); ?></p>
+				<?php else : ?>
+					<ol>
+						<?php foreach ( $trending['top_units'] as $row ) : ?>
+							<li><?php echo esc_html( $row['name'] ?: ( '#' . $row['product_id'] ) ); ?> — <?php echo esc_html( $row['qty_sold'] ); ?></li>
+						<?php endforeach; ?>
+					</ol>
+				<?php endif; ?>
+			</div>
+
+			<?php if ( ! empty( $trending['top_revenue'] ) && array_key_exists( 'revenue', $trending['top_revenue'][0] ) ) : ?>
+				<div class="cntr-dash-panel postbox" style="padding:16px;min-width:260px;">
+					<h2><?php esc_html_e( 'Top sellers by revenue', 'counter' ); ?></h2>
+					<p class="description"><?php echo esc_html( sprintf( /* translators: 1: start date, 2: end date */ __( '%1$s to %2$s', 'counter' ), $trending['from'], $trending['to'] ) ); ?></p>
+					<ol>
+						<?php foreach ( $trending['top_revenue'] as $row ) : ?>
+							<li><?php echo esc_html( $row['name'] ?: ( '#' . $row['product_id'] ) ); ?> — <?php echo wp_kses_post( wc_price( $row['revenue'] ) ); ?></li>
+						<?php endforeach; ?>
+					</ol>
+				</div>
+			<?php endif; ?>
+
+			<div class="cntr-dash-panel postbox" style="padding:16px;min-width:260px;">
+				<h2><?php esc_html_e( 'Busiest hours', 'counter' ); ?></h2>
+				<p class="description"><?php echo esc_html( sprintf( /* translators: 1: start date, 2: end date */ __( '%1$s to %2$s', 'counter' ), $trending['from'], $trending['to'] ) ); ?></p>
+				<?php
+				$active_hours = array_values( array_filter( $trending['peak_hours'], static fn( $row ) => 0 !== bccomp( $row['qty_sold'], '0', 4 ) ) );
+				?>
+				<?php if ( empty( $active_hours ) ) : ?>
+					<p><?php esc_html_e( 'No sales in this window.', 'counter' ); ?></p>
+				<?php else : ?>
+					<ol>
+						<?php foreach ( $active_hours as $row ) : ?>
+							<li><?php echo esc_html( sprintf( '%02d:00', (int) $row['hour'] ) ); ?> — <?php echo esc_html( $row['qty_sold'] ); ?> <?php esc_html_e( 'units', 'counter' ); ?></li>
+						<?php endforeach; ?>
+					</ol>
+				<?php endif; ?>
+			</div>
+
 		</div>
 		<?php
 	}

@@ -219,6 +219,7 @@ class Selftest {
 		$this->test_payment_accounts();
 		$this->test_rollup();
 		$this->test_hourly_rollup();
+		$this->test_trending();
 		$this->test_reports_channel();
 		$this->test_dashboard();
 		$this->test_pos_entry_points();
@@ -8405,6 +8406,130 @@ class Selftest {
 			'test_hourly_rollup: an empty hour returns zero, not a missing row',
 			$has_all_24 && $empty_hours_zero,
 			wp_json_encode( [ 'hour_count' => count( $hourly_for_day ) ] )
+		);
+	}
+
+	// -- D2: test_trending() -- 3 checks -----------------------------------------------
+
+	/**
+	 * D2's own backend is Reports::margin_by_product() + Reports::run()'s
+	 * 'sales_by_hour' — both P2.11/P5.2, unchanged here. Dashboard's own
+	 * trending() (D2, new) is a thin sort-two-ways over the first and a
+	 * pass-through of the second; this exercises what it's actually built
+	 * on, not the Dashboard rendering itself.
+	 */
+	private function test_trending(): void {
+		$location_id = \Counter\Stock\Locations::create(
+			[ 'name' => 'Counter Selftest Fixture Trending Location', 'code' => 'CNTR-SELFTEST-TR-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->location_fixture_ids[] = $location_id;
+
+		$register_id = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Trending Register', 'location_id' => $location_id ]
+		);
+		$this->register_fixture_ids[] = $register_id;
+		$shift_id = \Counter\Pos\Shifts::open( $register_id, get_current_user_id(), '0.00' );
+
+		// Product A — many units, cheap: wins on units, loses on revenue.
+		$product_a = new \WC_Product_Simple();
+		$product_a->set_name( 'Counter Selftest Fixture Trending Product A' );
+		$product_a->set_regular_price( '5.00' );
+		$product_a->set_manage_stock( true );
+		$product_a->set_stock_quantity( 0 );
+		$product_a->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product_a->save();
+		$this->product_fixture_ids[] = $product_a->get_id();
+		\Counter\Stock\Batches::receive( [ 'product_id' => $product_a->get_id(), 'variation_id' => 0, 'location_id' => $location_id, 'lot_no' => 'TR-A1', 'qty_received' => '50', 'unit_cost' => '2.0000' ] );
+
+		// Product B — few units, expensive: loses on units, wins on revenue.
+		$product_b = new \WC_Product_Simple();
+		$product_b->set_name( 'Counter Selftest Fixture Trending Product B' );
+		$product_b->set_regular_price( '40.00' );
+		$product_b->set_manage_stock( true );
+		$product_b->set_stock_quantity( 0 );
+		$product_b->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product_b->save();
+		$this->product_fixture_ids[] = $product_b->get_id();
+		\Counter\Stock\Batches::receive( [ 'product_id' => $product_b->get_id(), 'variation_id' => 0, 'location_id' => $location_id, 'lot_no' => 'TR-B1', 'qty_received' => '20', 'unit_cost' => '10.0000' ] );
+
+		$pos_context = [ 'register_id' => $register_id, 'shift_id' => $shift_id, 'location_id' => $location_id, 'operator_id' => get_current_user_id() ];
+
+		$order_a = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product_a, 'qty' => 10, 'subtotal' => '50.00', 'total' => '50.00' ] ],
+			$pos_context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-TREND-A-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order_a->get_id();
+		\Counter\Orders\Channel::apply_stock( $order_a );
+		$order_a->set_status( 'completed' );
+		$order_a->save();
+
+		$order_b = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product_b, 'qty' => 2, 'subtotal' => '80.00', 'total' => '80.00' ] ],
+			$pos_context + [ 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-TREND-B-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order_b->get_id();
+		\Counter\Orders\Channel::apply_stock( $order_b );
+		$order_b->set_status( 'completed' );
+		$order_b->save();
+
+		$admins_tr = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_tr ) ) {
+			wp_set_current_user( (int) $admins_tr[0] ); // cntr_view_cost, so revenue/margin are present
+		}
+
+		$now = Db::now();
+
+		// 1. Ranking by units and by revenue differ where they should — A
+		// (10 units @ ৳5) outsells B (2 units @ ৳40) on units; B outsells A
+		// on revenue (৳80 vs ৳50).
+		$rows = \Counter\Reports\Reports::margin_by_product(
+			[ 'location_id' => $location_id, 'date_from' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) - HOUR_IN_SECONDS ), 'date_to' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) + HOUR_IN_SECONDS ) ]
+		);
+		$by_units   = $rows;
+		usort( $by_units, static fn( $x, $y ) => bccomp( $y['qty_sold'], $x['qty_sold'], 4 ) );
+		$by_revenue = $rows;
+		usort( $by_revenue, static fn( $x, $y ) => bccomp( $y['revenue'] ?? '0', $x['revenue'] ?? '0', 4 ) );
+		$this->check(
+			'test_trending: ranking by units and by revenue differ where they should',
+			! empty( $by_units ) && ! empty( $by_revenue )
+				&& (int) $by_units[0]['product_id'] === $product_a->get_id()
+				&& (int) $by_revenue[0]['product_id'] === $product_b->get_id(),
+			wp_json_encode( [ 'top_units' => $by_units[0]['product_id'] ?? null, 'top_revenue' => $by_revenue[0]['product_id'] ?? null ] )
+		);
+
+		// 2. The range filter is honoured — a window that ends before this
+		// fixture's own sale finds nothing; one that includes it finds both.
+		$rows_excluded = \Counter\Reports\Reports::margin_by_product(
+			[ 'location_id' => $location_id, 'date_from' => '2000-01-01 00:00:00', 'date_to' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) - DAY_IN_SECONDS ) ]
+		);
+		$rows_included = \Counter\Reports\Reports::margin_by_product(
+			[ 'location_id' => $location_id, 'date_from' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) - HOUR_IN_SECONDS ), 'date_to' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) + HOUR_IN_SECONDS ) ]
+		);
+		$this->check(
+			'test_trending: the range filter is honoured',
+			empty( $rows_excluded ) && count( $rows_included ) >= 2,
+			wp_json_encode( [ 'excluded_count' => count( $rows_excluded ), 'included_count' => count( $rows_included ) ] )
+		);
+
+		// 3. Margin comes from frozen COGS, not a recomputed cost — receive
+		// a second, much pricier batch for product A AFTER its sale
+		// completed; the already-recorded sale's own cogs must stay pinned
+		// to the ORIGINAL batch's unit_cost, never drift toward the new one.
+		\Counter\Stock\Batches::receive( [ 'product_id' => $product_a->get_id(), 'variation_id' => 0, 'location_id' => $location_id, 'lot_no' => 'TR-A2-LATE', 'qty_received' => '50', 'unit_cost' => '99.0000' ] );
+		$rows_after_late_batch = \Counter\Reports\Reports::margin_by_product(
+			[ 'location_id' => $location_id, 'date_from' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) - HOUR_IN_SECONDS ), 'date_to' => gmdate( 'Y-m-d H:i:s', strtotime( $now ) + HOUR_IN_SECONDS ) ]
+		);
+		$product_a_row = null;
+		foreach ( $rows_after_late_batch as $r ) {
+			if ( (int) $r['product_id'] === $product_a->get_id() ) {
+				$product_a_row = $r;
+				break;
+			}
+		}
+		$this->check(
+			'test_trending: margin comes from frozen COGS, not a recomputed cost',
+			null !== $product_a_row && 0 === bccomp( $product_a_row['cogs'], '20.0000', 4 ),
+			wp_json_encode( [ 'cogs' => $product_a_row['cogs'] ?? null, 'expected' => '20.0000' ] )
 		);
 	}
 

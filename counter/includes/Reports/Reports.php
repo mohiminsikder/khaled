@@ -464,6 +464,12 @@ class Reports {
 			$price          = $product ? wc_format_decimal( $product->get_price(), 4 ) : '0.0000';
 			$row['revenue'] = bcmul( $row['qty_sold'], $price, 4 );
 			$row['margin']  = bcsub( $row['revenue'], $row['cogs'], 4 );
+			// D2 — found live: every sibling report on this same query shape
+			// (report_sales_by_product() above) already resolves this;
+			// margin_by_product() never had, leaving any caller that
+			// displays a product name (Dashboard's own trending panel) with
+			// a silently-absent key instead.
+			$row['name']    = $product ? $product->get_name() : '';
 		}
 		unset( $row );
 
