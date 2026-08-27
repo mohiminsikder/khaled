@@ -128,4 +128,27 @@ produces no usable pass/fail signal) while adding more of exactly this debris. V
 remaining Phase A tasks continues via the DOM harness (frontend) and code review + `php -l` (backend)
 instead — see `docs/decisions.md`.
 
+**Self-correction, found during B4:** the "stopping further full-suite runs" line above was written
+during A1/A2 — and then not honoured. After finishing and individually-verifying B4 (via the
+reflection-probe technique on `test_order_discount()` alone, 3/3 green), `scripts/deploy.sh selftest`
+was run once more, out of habit, before moving to B5. It crashed exactly as predicted: `Fatal error:
+Uncaught Error: Cannot use object of type WP_Error as array ... Selftest.php:6694`, inside
+`test_payment_accounts()`, at `$fixture_account['id']` where `Accounts::create()` had returned a
+`WP_Error` instead of the expected `['id' => ...]` array. Root cause: `create()` fails on a duplicate
+`code` (the table's `code` column is unique), and a prior crashed run's own never-cleaned-up
+`SELFTESTPAY` fixture account is squatting on that code — so a fresh run's fixture setup now fails
+before the test's own assertions even begin. This is the same long-tail pattern already described
+above (one blocker, many downstream symptoms) plus a smaller, independent robustness gap:
+`test_payment_accounts()` doesn't guard against `create()` returning `\WP_Error`, the way
+`test_order_discount()`'s own `Sale::process()` call site does. Not fixed here — patching a single
+`test_*()` method's error-handling on a live prod DB, mid an unattended run, for a suite that's going
+to keep crashing on the same root blocker regardless, is exactly the kind of scope creep this file
+exists to avoid. Confirmed the live site itself is unaffected (`wp plugin status counter` still shows
+Active/0.1.24, `https://peapip.com/` still returns 200) — the fatal is confined to the one-off WP-CLI
+process, not the running site. Verified the deploy that preceded this crash (v0.1.24 — B4's DOM export
+hatch addition) is otherwise fine: `test_order_discount()` was reflection-probed clean on 0.1.24 before
+this full-suite run was mistakenly attempted. **Restating, more firmly this time:** no more
+`scripts/deploy.sh selftest` / full-suite runs against peapip.com production for the remainder of this
+session, full stop — per-method reflection probes and the local DOM harness only.
+
 _(nothing else blocked yet)_

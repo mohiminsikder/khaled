@@ -204,6 +204,7 @@ class Selftest {
 		$this->test_fulfilment();
 		$this->test_price_groups();
 		$this->test_price_group_at_till();
+		$this->test_order_discount();
 		$this->test_payment_accounts();
 		$this->test_rollup();
 		$this->test_reports_channel();
@@ -6438,6 +6439,110 @@ class Selftest {
 		);
 
 		wp_set_current_user( $original_user_id_pgt );
+	}
+
+	// -- B4: test_order_discount() -- 3 checks -----------------------------------
+
+	/**
+	 * B4's own three checks. Two otherwise-identical sales (same product,
+	 * same known FIFO cost, same qty) — one plain, one carrying an
+	 * order_discount — isolates the discount's effect from everything else:
+	 * if COGS differs between them, the discount leaked into cost, not just
+	 * price.
+	 */
+	private function test_order_discount(): void {
+		$main_id = \Counter\Stock\Locations::default_id();
+
+		// Same "bare wp eval has no logged-in user" trap test_tenders()/
+		// test_price_group_at_till() already documented — Sale::process()
+		// is called directly here, bypassing Router::guard()'s own check,
+		// but downstream code (Pos\Pin::current_operator() fallback, audit
+		// logging) still expects a real current user in some contexts.
+		$original_user_id_od = get_current_user_id();
+		$admins_od             = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_od ) ) {
+			wp_set_current_user( (int) $admins_od[0] );
+		}
+
+		$make_fixture_sale = function ( string $tag_suffix, string $order_discount ) use ( $main_id ) {
+			$register_id = \Counter\Pos\Registers::create(
+				[ 'name' => 'Counter Selftest Fixture Order Discount Register ' . $tag_suffix, 'location_id' => $main_id, 'prefix' => 'ZS' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+			);
+			$this->register_fixture_ids[] = $register_id;
+			$shift_id = \Counter\Pos\Shifts::open( $register_id, get_current_user_id(), '0.00' );
+
+			$product = new \WC_Product_Simple();
+			$product->set_name( 'Counter Selftest Fixture Order Discount Product ' . $tag_suffix );
+			$product->set_regular_price( '100.00' );
+			$product->set_manage_stock( true );
+			$product->set_stock_quantity( 0 );
+			$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+			$product->save();
+			$product_id                  = $product->get_id();
+			$this->product_fixture_ids[] = $product_id;
+
+			// A known FIFO cost — ৳50.00/unit, independent of the ৳100
+			// selling price and of whatever discount this sale carries. FIFO
+			// consumption reads batches, not a bare Ledger::move()'s own
+			// unit_cost field — same fixture shape test_fifo() etc. already use.
+			$batch_id = \Counter\Stock\Batches::receive(
+				[ 'product_id' => $product_id, 'variation_id' => 0, 'location_id' => $main_id, 'lot_no' => 'ORDDISC-' . $tag_suffix, 'qty_received' => '10', 'unit_cost' => '50.0000' ]
+			);
+			$this->batch_fixture_ids[] = $batch_id;
+
+			$uuid = wp_generate_uuid4();
+			$this->sale_queue_uuids[] = $uuid;
+			$body = [
+				'lines'          => [ [ 'product_id' => $product_id, 'variation_id' => 0, 'qty' => '1.0000', 'unit_price' => '100.0000', 'discount' => '0.0000' ] ],
+				'tenders'        => [ [ 'method' => 'card', 'amount' => bcsub( '100.0000', $order_discount, 4 ) ] ],
+				'cart_discount'  => $order_discount,
+			];
+			$result   = \Counter\Rest\Sale::process( $uuid, $register_id, $shift_id, 'SELFTEST-ORDDISC-' . $tag_suffix, $body );
+			$data     = $result instanceof \WP_REST_Response ? $result->get_data() : ( $result instanceof \WP_Error ? [ 'error' => $result->get_error_message() ] : $result );
+			$order_id = (int) ( $data['order_id'] ?? 0 );
+			if ( $order_id ) {
+				$this->order_fixture_ids[] = $order_id;
+			}
+			return [ 'order' => $order_id ? wc_get_order( $order_id ) : null, 'data' => $data ];
+		};
+
+		$plain      = $make_fixture_sale( 'plain', '0.0000' );
+		$discounted = $make_fixture_sale( 'discounted', '15.0000' );
+
+		// 1. The discount reaches the order.
+		$this->check(
+			'test_order_discount: the discount reaches the order',
+			$discounted['order'] instanceof \WC_Order && 0 === bccomp( (string) $discounted['order']->get_discount_total(), '15.0000', 4 ),
+			$discounted['order'] instanceof \WC_Order ? 'discount_total=' . $discounted['order']->get_discount_total() : wp_json_encode( $discounted['data'] )
+		);
+
+		// 2. It is excluded from COGS — the discounted sale's COGS equals
+		// the plain sale's, both 10 x ৳50.00 for the same one unit sold.
+		$plain_cogs      = $plain['order'] instanceof \WC_Order ? (string) $plain['order']->get_meta( '_cntr_cogs' ) : null;
+		$discounted_cogs = $discounted['order'] instanceof \WC_Order ? (string) $discounted['order']->get_meta( '_cntr_cogs' ) : null;
+		$this->check(
+			'test_order_discount: it is excluded from COGS',
+			null !== $plain_cogs && null !== $discounted_cogs && 0 === bccomp( $plain_cogs, $discounted_cogs, 4 ) && 0 === bccomp( $plain_cogs, '50.0000', 4 ),
+			"plain={$plain_cogs} discounted={$discounted_cogs}"
+		);
+
+		// 3. The receipt prints it. get_discount_total() comes back as
+		// WooCommerce's own un-padded "15", not "15.0000" — the receipt
+		// template casts it straight to string with no formatting, so that
+		// (not a hardcoded '15.0000' literal) is what actually appears.
+		// Confirmed live: dumping the rendered HTML showed the totals row
+		// as "Discount" / "-15", never "15.0000" — an earlier version of
+		// this check asserted the wrong literal and failed against a
+		// correctly-working receipt.
+		$receipt_html    = (string) ( $discounted['data']['receipt_html'] ?? '' );
+		$discount_amount = $discounted['order'] instanceof \WC_Order ? (string) $discounted['order']->get_discount_total() : '';
+		$this->check(
+			'test_order_discount: the receipt prints it',
+			'' !== $discount_amount && str_contains( $receipt_html, 'Discount' ) && str_contains( $receipt_html, $discount_amount ),
+			'len=' . strlen( $receipt_html ) . ' discount_amount=' . $discount_amount
+		);
+
+		wp_set_current_user( $original_user_id_od );
 	}
 
 	// -- P4.6: test_payment_accounts() -- 6 checks --------------------------------------

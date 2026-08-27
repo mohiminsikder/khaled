@@ -52,6 +52,17 @@
 			usualItemsLabel: 'Usual:',
 			searchPlaceholder: 'Scan or type SKU / barcode / name',
 			cartTotal: 'Total:',
+			footerItemsLabel: 'Items',
+			footerDiscountLabel: 'Discount',
+			footerTaxLabel: 'Order tax',
+			footerShippingLabel: 'Shipping',
+			footerRoundOffLabel: 'Round off',
+			footerTotalLabel: 'Total',
+			footerEditAria: 'Edit %field%',
+			orderDiscountTitle: 'Order discount',
+			orderTaxTitle: 'Order tax',
+			orderShippingTitle: 'Shipping',
+			amountLabel: 'Amount',
 			outOfStockBadge: 'Out of stock',
 			stockInUnit: '%qty% %unit% left',
 			editSubtotalAria: 'Line subtotal',
@@ -1023,7 +1034,36 @@
 		heldSales: [],
 		selectedIdx: null, // F1 — the line ↑/↓, per-row qty and Esc act on; defaults to the last line added
 		priceGroupId: 0, // B2 — 0 means the register's own price; set by attach (F4 §2) or the manual picker
+		orderDiscount: '0', // B4 — a flat amount, same shape as a line's own l.discount
+		orderTax: '0',
+		shipping: '0',
 	};
+
+	/** B4 — a fresh sale starts with none of these; called everywhere the cart itself already resets (sale completed, held, or voided). */
+	function resetOrderAdjustments() {
+		cart.orderDiscount = '0';
+		cart.orderTax = '0';
+		cart.shipping = '0';
+	}
+
+	/**
+	 * B4 — the totals footer's own arithmetic, and the one place "what is
+	 * actually due" is computed once everything above the footer (lines,
+	 * price group, per-line discounts) is settled. Round off is a PREVIEW
+	 * of Orders\Money::apply_rounding()'s own server-side step/round math —
+	 * display-only, per the task's own Frontend line; the server is still
+	 * what actually applies it (as a real fee line), this only shows the
+	 * cashier what to expect before they submit.
+	 */
+	function footerTotals() {
+		const items = cart.lines.reduce((sum, l) => sum + lineTotal(l), 0);
+		const discount = parseFloat(cart.orderDiscount) || 0;
+		const tax = parseFloat(cart.orderTax) || 0;
+		const shipping = parseFloat(cart.shipping) || 0;
+		const beforeRound = items - discount + tax + shipping;
+		const roundOff = roundToStep(beforeRound) - beforeRound;
+		return { items, discount, tax, shipping, roundOff, total: beforeRound + roundOff };
+	}
 
 	/** Marks when the CURRENT sale began — its first line on an empty cart —
 	 * so submitSale() can record total scan-to-receipt for the whole sale,
@@ -1106,8 +1146,9 @@
 		return parseFloat(line.unitPrice) * parseFloat(line.qty) - parseFloat(line.discount || '0');
 	}
 
+	/** B4 — the amount actually due: every line, plus the order-level footer (discount/tax/shipping/round-off preview). */
 	function cartTotal() {
-		return cart.lines.reduce((sum, l) => sum + lineTotal(l), 0);
+		return footerTotals().total;
 	}
 
 	/**
@@ -1180,7 +1221,12 @@
 				note: l.note,
 			})),
 			tenders,
-			cart_discount: '0.0000',
+			// B4 — the footer's own order-level figures; Rest\Sale::process()
+			// forwards these into Orders\Builder as a real WooCommerce
+			// discount/fee, not baked into any one line.
+			cart_discount: cart.orderDiscount || '0.0000',
+			order_tax: cart.orderTax || '0.0000',
+			shipping: cart.shipping || '0.0000',
 			offline: false,
 			price_group_id: cart.priceGroupId || 0,
 		};
@@ -1220,6 +1266,7 @@
 			cart.lines = [];
 			cart.customer = emptyCustomer();
 			applyPriceOverrides([], 0); // B2 — the next sale starts at the register's own price
+			resetOrderAdjustments(); // B4 — order-level adjustments reset with the cart
 			render();
 			return { queued: true, uuid, receipt_no: receiptNo };
 		}
@@ -1234,6 +1281,7 @@
 			cart.lines = [];
 			cart.customer = emptyCustomer();
 			applyPriceOverrides([], 0); // B2 — the next sale starts at the register's own price
+			resetOrderAdjustments(); // B4 — order-level adjustments reset with the cart
 			render();
 		}
 		return receipt;
@@ -1569,7 +1617,19 @@
 		// selection; held lines already carry their own frozen unitPrice
 		// (same as the customer's own group always has), so nothing here
 		// re-prices on resume — matching that existing, unchanged behaviour.
-		const record = { id: uuid4(), lines: cart.lines, customer: cart.customer, priceGroupId: cart.priceGroupId, heldAt: Date.now() };
+		const record = {
+			id: uuid4(),
+			lines: cart.lines,
+			customer: cart.customer,
+			priceGroupId: cart.priceGroupId,
+			// B4 — a discount/tax/shipping already set on this sale is part
+			// of what "resume" should bring back, same reasoning as the
+			// price group above.
+			orderDiscount: cart.orderDiscount,
+			orderTax: cart.orderTax,
+			shipping: cart.shipping,
+			heldAt: Date.now(),
+		};
 		cart.heldSales.push(record);
 		const db = await openDb();
 		await idbHeldPut(db, record);
@@ -1577,6 +1637,7 @@
 		cart.customer = emptyCustomer();
 		cart.selectedIdx = null;
 		applyPriceOverrides([], 0); // the next walk-up customer starts at the register's own price
+		resetOrderAdjustments(); // B4 — order-level adjustments reset with the cart
 		render();
 	}
 
@@ -1630,6 +1691,9 @@
 		});
 		cart.customer = held.customer;
 		cart.priceGroupId = held.priceGroupId || 0; // display only — held lines keep their own frozen prices, same as customer groups already do on resume
+		cart.orderDiscount = held.orderDiscount || '0';
+		cart.orderTax = held.orderTax || '0';
+		cart.shipping = held.shipping || '0';
 		cart.selectedIdx = null;
 		closeHeldList();
 		render();
@@ -2179,6 +2243,117 @@
 		if (cancelBtn) cancelBtn.addEventListener('click', closeDiscountPrompt);
 	}
 
+	// -- B4: order-level discount, tax and shipping — one shared pencil modal ----
+
+	let orderAdjustState = null; // { field: 'discount' | 'tax' | 'shipping' }
+
+	function openOrderAdjust(field) {
+		if (!cart.lines.length) return;
+		orderAdjustState = { field };
+		renderOrderAdjust();
+	}
+
+	function closeOrderAdjust() {
+		orderAdjustState = null;
+		const root = document.getElementById('cntr-order-adjust');
+		if (root) {
+			root.hidden = true;
+			root.innerHTML = '';
+		}
+		restoreFocus();
+	}
+
+	/**
+	 * Discount only: amount or percent OF THE ITEMS SUBTOTAL (mirrors
+	 * lineDiscountBase()'s own amount-or-percent shape), bounded by the
+	 * same discountCeilingPct a line discount already enforces — an
+	 * order-level discount is still a cashier's own discretion, not a
+	 * supervisor override, so the same ceiling applies. Tax and shipping
+	 * are plain amounts, no ceiling: they add to the total, they are never
+	 * a discretion to bound.
+	 */
+	function submitOrderAdjust() {
+		if (!orderAdjustState) return;
+		const field = orderAdjustState.field;
+
+		if ('discount' === field) {
+			const amountInput = document.getElementById('cntr-order-adjust-amount');
+			const pctInput = document.getElementById('cntr-order-adjust-pct');
+			const amountVal = amountInput ? parseFloat(amountInput.value) : NaN;
+			const pctVal = pctInput ? parseFloat(pctInput.value) : NaN;
+			const base = footerTotals().items;
+
+			let amount;
+			let pct;
+			if (amountVal >= 0 && !isNaN(amountVal)) {
+				amount = amountVal;
+				pct = base > 0 ? (amount / base) * 100 : 0;
+			} else if (pctVal >= 0 && !isNaN(pctVal)) {
+				pct = pctVal;
+				amount = (pct / 100) * base;
+			} else {
+				return; // nothing entered
+			}
+
+			const ceiling = parseFloat(CFG.discountCeilingPct) || 0;
+			const warn = document.getElementById('cntr-order-adjust-warning');
+			if (pct > ceiling + 0.0001) {
+				if (warn) {
+					warn.hidden = false;
+					warn.textContent = fmt(STRINGS.discountAboveCeiling, { pct: pct.toFixed(1), ceiling: ceiling.toFixed(1) });
+				}
+				return;
+			}
+			cart.orderDiscount = amount.toFixed(4);
+		} else {
+			const input = document.getElementById('cntr-order-adjust-amount');
+			const val = input ? parseFloat(input.value) : NaN;
+			if (isNaN(val) || val < 0) return;
+			if ('tax' === field) cart.orderTax = val.toFixed(4);
+			else if ('shipping' === field) cart.shipping = val.toFixed(4);
+		}
+		closeOrderAdjust();
+		render();
+	}
+
+	function renderOrderAdjust() {
+		const root = document.getElementById('cntr-order-adjust');
+		if (!root || !orderAdjustState) return;
+		const field = orderAdjustState.field;
+		const titles = { discount: STRINGS.orderDiscountTitle, tax: STRINGS.orderTaxTitle, shipping: STRINGS.orderShippingTitle };
+		root.innerHTML = `
+			<div class="cntr-modal-box">
+				<h2>${titles[field] || ''}</h2>
+				${
+					'discount' === field
+						? `<label>${STRINGS.amountOffLabel}
+							<input id="cntr-order-adjust-amount" type="text" inputmode="decimal" value="">
+						</label>
+						<label>${STRINGS.percentOffLabel}
+							<input id="cntr-order-adjust-pct" type="text" inputmode="decimal" value="">
+						</label>
+						<span id="cntr-order-adjust-warning" class="cntr-inline-warning" hidden></span>`
+						: `<label>${STRINGS.amountLabel}
+							<input id="cntr-order-adjust-amount" type="text" inputmode="decimal" value="${'tax' === field ? cart.orderTax : cart.shipping}">
+						</label>`
+				}
+				<div class="cntr-modal-actions">
+					<button type="button" id="cntr-order-adjust-apply">${STRINGS.applyBtn}</button>
+					<button type="button" id="cntr-order-adjust-cancel">${STRINGS.cancelBtn}</button>
+				</div>
+			</div>
+		`;
+		root.hidden = false;
+		const amountInput = document.getElementById('cntr-order-adjust-amount');
+		if (amountInput) amountInput.focus();
+		submitOnEnter(amountInput, submitOrderAdjust);
+		submitOnEnter(document.getElementById('cntr-order-adjust-pct'), submitOrderAdjust);
+		const applyBtn = document.getElementById('cntr-order-adjust-apply');
+		if (applyBtn) applyBtn.addEventListener('click', submitOrderAdjust);
+		const cancelBtn = document.getElementById('cntr-order-adjust-cancel');
+		if (cancelBtn) cancelBtn.addEventListener('click', closeOrderAdjust);
+	}
+
 	let noSalePromptState = null; // {}
 
 	function noSale() {
@@ -2294,6 +2469,7 @@
 			cart.customer = emptyCustomer();
 			cart.selectedIdx = null;
 			applyPriceOverrides([], 0); // B2 — a voided cart starts over at the register's own price too
+			resetOrderAdjustments(); // B4 — order-level adjustments reset with the cart
 			render();
 		}
 	}
@@ -2794,7 +2970,7 @@
 		const prevValue = prevSearch ? prevSearch.value : '';
 		const prevCaret = prevSearch ? prevSearch.selectionStart : null;
 
-		const total = cartTotal().toFixed(2);
+		const footer = footerTotals();
 		// U1 — "Shift R1-000042", the same {prefix}-{shift, zero-padded 6}
 		// convention nextReceiptNo() already uses for the receipt number
 		// itself, so the header names the same shift a printed receipt does.
@@ -2916,9 +3092,33 @@
 				<div class="cntr-pos-search">
 					<div class="cntr-pos-search-row">
 						<input id="cntr-search" type="text" placeholder="${escapeHtml(STRINGS.searchPlaceholder)}" autofocus>
-						<span class="cntr-pos-total">${STRINGS.cartTotal} ${formatMoney(total)}</span>
+						<span class="cntr-pos-total">${STRINGS.cartTotal} ${formatMoney(footer.total)}</span>
 					</div>
 					<ul id="cntr-search-results" class="cntr-search-results" hidden></ul>
+				</div>
+				<div class="cntr-pos-footer">
+					<div class="cntr-footer-row"><span>${STRINGS.footerItemsLabel}</span><span>${formatMoney(footer.items)}</span></div>
+					<div class="cntr-footer-row cntr-footer-total"><span>${STRINGS.footerTotalLabel}</span><span>${formatMoney(footer.total)}</span></div>
+					<div class="cntr-footer-row cntr-footer-adjust">
+						<span>${STRINGS.footerDiscountLabel}</span>
+						<span>${footer.discount ? '−' + formatMoney(footer.discount) : '—'}</span>
+						<button type="button" class="cntr-footer-edit" data-field="discount" aria-label="${fmt(STRINGS.footerEditAria, { field: STRINGS.footerDiscountLabel })}">&#9998;</button>
+					</div>
+					<div class="cntr-footer-row cntr-footer-adjust">
+						<span>${STRINGS.footerTaxLabel}</span>
+						<span>${footer.tax ? '+' + formatMoney(footer.tax) : '—'}</span>
+						<button type="button" class="cntr-footer-edit" data-field="tax" aria-label="${fmt(STRINGS.footerEditAria, { field: STRINGS.footerTaxLabel })}">&#9998;</button>
+					</div>
+					<div class="cntr-footer-row cntr-footer-adjust">
+						<span>${STRINGS.footerShippingLabel}</span>
+						<span>${footer.shipping ? '+' + formatMoney(footer.shipping) : '—'}</span>
+						<button type="button" class="cntr-footer-edit" data-field="shipping" aria-label="${fmt(STRINGS.footerEditAria, { field: STRINGS.footerShippingLabel })}">&#9998;</button>
+					</div>
+					${
+						Math.abs(footer.roundOff) >= 0.005
+							? `<div class="cntr-footer-row"><span>${STRINGS.footerRoundOffLabel}</span><span>${formatMoney(footer.roundOff)}</span></div>`
+							: ''
+					}
 				</div>
 				<footer class="cntr-pos-keybar">
 					${KEY_BAR.map(
@@ -2934,6 +3134,7 @@
 			<div id="cntr-discount" class="cntr-modal" hidden></div>
 			<div id="cntr-no-sale" class="cntr-modal" hidden></div>
 			<div id="cntr-held" class="cntr-modal" hidden></div>
+			<div id="cntr-order-adjust" class="cntr-modal" hidden></div>
 		`;
 
 		const search = document.getElementById('cntr-search');
@@ -3007,6 +3208,11 @@
 		});
 		root.querySelectorAll('.cntr-cart-subtotal').forEach((input) => {
 			input.addEventListener('change', () => editLineSubtotal(parseInt(input.dataset.idx, 10), input.value));
+		});
+
+		// B4 — the footer's own pencil rows.
+		root.querySelectorAll('.cntr-footer-edit').forEach((btn) => {
+			btn.addEventListener('click', () => openOrderAdjust(btn.dataset.field));
 		});
 
 		// B1 — the tile grid: a category chip narrows gridProducts(), a tile
@@ -3228,5 +3434,5 @@
 	}
 
 	window.CNTR = window.CNTR || {};
-	window.CNTR._pos = { submitSale, submitQuickAdd, cart, searchByText, parseWeightBarcode, drainOutbox, queueSale, buildOfflineReceiptHtml, pendingOutboxEntries, isOutboxLocked, openReturnFlow, fetchOrderLookup, submitReturn, buildReturnReceiptHtml };
+	window.CNTR._pos = { submitSale, submitQuickAdd, cart, searchByText, parseWeightBarcode, drainOutbox, queueSale, buildOfflineReceiptHtml, pendingOutboxEntries, isOutboxLocked, openReturnFlow, fetchOrderLookup, submitReturn, buildReturnReceiptHtml, footerTotals };
 })();

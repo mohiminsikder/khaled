@@ -19,6 +19,22 @@ $rounding   = $order->get_meta( '_cntr_rounding' );
 $tenders_json = (string) $order->get_meta( '_cntr_tenders' );
 $tenders      = $tenders_json ? json_decode( $tenders_json, true ) : [];
 
+// B4 — the order-level discount/tax/shipping the totals footer set.
+// Discount and shipping are real WooCommerce totals (a coupon item and a
+// shipping item respectively — Orders\Builder adds both); the manual
+// "Order tax" fee is tax-exempt by design (Orders\Builder's own reasoning:
+// it already IS a tax amount, never itself taxed again), so it does not
+// appear in get_total_tax() and is read back by name instead.
+$cntr_discount_total = (string) $order->get_discount_total();
+$cntr_shipping_total = (string) $order->get_shipping_total();
+$cntr_order_tax      = '0';
+foreach ( $order->get_items( 'fee' ) as $fee_item ) {
+	if ( __( 'Order tax', 'counter' ) === $fee_item->get_name() ) {
+		$cntr_order_tax = (string) $fee_item->get_total();
+		break;
+	}
+}
+
 // F4 (COUNTERFRONTEND.md) — "a credit customer should leave holding what
 // they now owe." Read AFTER Tenders::record() has already committed any
 // shortfall (Rest\Sale::process() builds this receipt as its own step 9,
@@ -105,10 +121,28 @@ $cntr_balance      = $cntr_customer_id > 0 ? \Counter\Credit\CustomerLedger::bal
 			<td class="cntr-r-label">Subtotal</td>
 			<td class="cntr-r-value"><?php echo esc_html( (string) $order->get_subtotal() ); ?></td>
 		</tr>
+		<?php if ( (float) $cntr_discount_total > 0 ) : ?>
+		<tr>
+			<td class="cntr-r-label">Discount</td>
+			<td class="cntr-r-value">-<?php echo esc_html( $cntr_discount_total ); ?></td>
+		</tr>
+		<?php endif; ?>
 		<?php if ( (float) $order->get_total_tax() > 0 ) : ?>
 		<tr>
 			<td class="cntr-r-label">VAT</td>
 			<td class="cntr-r-value"><?php echo esc_html( (string) $order->get_total_tax() ); ?></td>
+		</tr>
+		<?php endif; ?>
+		<?php if ( (float) $cntr_order_tax > 0 ) : ?>
+		<tr>
+			<td class="cntr-r-label">Order tax</td>
+			<td class="cntr-r-value"><?php echo esc_html( $cntr_order_tax ); ?></td>
+		</tr>
+		<?php endif; ?>
+		<?php if ( (float) $cntr_shipping_total > 0 ) : ?>
+		<tr>
+			<td class="cntr-r-label">Shipping</td>
+			<td class="cntr-r-value"><?php echo esc_html( $cntr_shipping_total ); ?></td>
 		</tr>
 		<?php endif; ?>
 		<?php if ( $rounding ) : ?>

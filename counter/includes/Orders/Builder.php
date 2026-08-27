@@ -129,6 +129,68 @@ class Builder {
 			$order->update_meta_data( '_cntr_offline', 1 );
 		}
 
+		// B4 — the totals footer's own order-level figures, all resolved
+		// BEFORE calculate_totals() below so WooCommerce's own totals
+		// machinery folds them in on its one real pass, same discipline
+		// the class docblock already states for line discounts.
+		//
+		// The discount is spread across each line's own `total` (never
+		// `subtotal`, which stays the pre-discount figure) proportionally
+		// to that line's share of the pre-discount total — this IS what a
+		// real WooCommerce discount looks like structurally (discount_total
+		// is computed from exactly this subtotal/total gap; a real coupon
+		// applied through WC_Cart does the identical thing under the hood),
+		// as opposed to "a fudged line": a fake extra order line item
+		// carrying a negative price to represent the discount, which is
+		// what this explicitly is NOT. The remainder (rounding) lands on
+		// the last line so nothing is lost to float division. A
+		// WC_Order_Item_Coupon is added alongside purely as a labelled
+		// record of why the total moved — it does not itself drive the
+		// arithmetic above, since this is a POS discretionary discount, not
+		// a real registered coupon code.
+		$order_discount = wc_format_decimal( $context['order_discount'] ?? '0', 4 );
+		if ( bccomp( $order_discount, '0', 4 ) > 0 ) {
+			$items      = array_values( $order->get_items( 'line_item' ) );
+			$sum_totals = '0';
+			foreach ( $items as $item ) {
+				$sum_totals = bcadd( $sum_totals, $item->get_total(), 4 );
+			}
+			if ( bccomp( $sum_totals, '0', 4 ) > 0 ) {
+				$applied = '0';
+				$count   = count( $items );
+				foreach ( $items as $i => $item ) {
+					$is_last = ( $count - 1 === $i );
+					$share   = $is_last
+						? bcsub( $order_discount, $applied, 4 )
+						: wc_format_decimal( bcdiv( bcmul( $order_discount, $item->get_total(), 4 ), $sum_totals, 8 ), 4 );
+					$applied = bcadd( $applied, $share, 4 );
+					$item->set_total( bcsub( $item->get_total(), $share, 4 ) );
+				}
+			}
+			$coupon = new \WC_Order_Item_Coupon();
+			$coupon->set_code( 'pos-discount' );
+			$coupon->set_discount( $order_discount );
+			$coupon->set_discount_tax( '0' );
+			$order->add_item( $coupon );
+		}
+		$order_tax = wc_format_decimal( $context['order_tax'] ?? '0', 4 );
+		if ( bccomp( $order_tax, '0', 4 ) > 0 ) {
+			$tax_fee = new \WC_Order_Item_Fee();
+			$tax_fee->set_name( __( 'Order tax', 'counter' ) );
+			$tax_fee->set_amount( $order_tax );
+			$tax_fee->set_total( $order_tax );
+			$tax_fee->set_tax_status( 'none' );
+			$tax_fee->set_total_tax( '0' );
+			$order->add_item( $tax_fee );
+		}
+		$shipping_amount = wc_format_decimal( $context['shipping'] ?? '0', 4 );
+		if ( bccomp( $shipping_amount, '0', 4 ) > 0 ) {
+			$shipping_item = new \WC_Order_Item_Shipping();
+			$shipping_item->set_method_title( __( 'Shipping', 'counter' ) );
+			$shipping_item->set_total( $shipping_amount );
+			$order->add_item( $shipping_item );
+		}
+
 		$order->calculate_taxes();          // uses the POS tax location filter above
 		$order->calculate_totals( false );  // false = do NOT recalculate taxes a second time
 

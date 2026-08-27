@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Counter
  * Description: Point of sale, stockroom and back office for a WooCommerce shop.
- * Version:     0.1.23
+ * Version:     0.1.24
  * Requires PHP: 8.1
  * Requires Plugins: woocommerce
  * Text Domain: counter
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'CNTR_VERSION', '0.1.23' );  // must equal the Version: header — test_version()
+define( 'CNTR_VERSION', '0.1.24' );  // must equal the Version: header — test_version()
 define( 'CNTR_DB_VER', 1 );          // bump with every schema change
 define( 'CNTR_FILE', __FILE__ );
 define( 'CNTR_DIR', plugin_dir_path( __FILE__ ) );

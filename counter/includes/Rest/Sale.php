@@ -91,7 +91,10 @@ class Sale {
 						'validate_callback' => static fn( $v ) => is_array( $v ) && ! empty( $v ),
 					],
 					'tenders'       => [ 'required' => false, 'type' => 'array' ],
+					// B4 — the totals footer's own order-level figures.
 					'cart_discount' => [ 'required' => false, 'type' => 'string' ],
+					'order_tax'     => [ 'required' => false, 'type' => 'string' ],
+					'shipping'      => [ 'required' => false, 'type' => 'string' ],
 					'offline'       => [ 'required' => false, 'type' => 'boolean' ],
 				],
 			]
@@ -212,6 +215,12 @@ class Sale {
 					// this sale was rung, straight from the terminal's own
 					// cart.priceGroupId; Builder::build() records it on the order.
 					'price_group_id' => (int) ( $body['price_group_id'] ?? 0 ),
+					// B4 — the totals footer's own figures, applied by
+					// Builder::build() as a real WooCommerce discount/fee, not
+					// folded into any one line.
+					'order_discount' => wc_format_decimal( $body['cart_discount'] ?? '0', 4 ),
+					'order_tax'      => wc_format_decimal( $body['order_tax'] ?? '0', 4 ),
+					'shipping'       => wc_format_decimal( $body['shipping'] ?? '0', 4 ),
 					// P7.2 — the terminal's own outbox sets this on a sale it
 					// queued while offline and drains later; a sale posted
 					// directly (online, no outbox involved) never sets it.

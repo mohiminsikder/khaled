@@ -143,6 +143,70 @@ await sugarLine().locator('.cntr-cart-unit').selectOption('201');
 await p.waitForTimeout(300);
 assert('1' === (await sugarQty()) && '135.00' === (await sugarSubtotal()), `B3: switching back to kg restores qty and price (qty=${await sugarQty()}, subtotal=${await sugarSubtotal()})`);
 
+// -- B4: order-level discount, tax, shipping, and the round-off footer.
+// The cart carries 4 lines here — Chinigura/Soyabin/Sugar from A1 (৳940)
+// plus the A2 quick-add "Probe Item" (৳50) — so the items subtotal this
+// section works against is ৳990.00, not the ৳940 the A1 block asserted on
+// its own 3-line cart. Fixture config: discountCeilingPct=10 (so ৳99 is
+// the cap on this base), roundingStep=1.
+const footerTotal = () => p.textContent('.cntr-pos-total').then(t => t.trim());
+const footerRow = (label) => p.locator('.cntr-footer-row', { hasText: label }).first();
+const openAdjust = async (field) => { await p.click(`.cntr-footer-edit[data-field="${field}"]`); await p.waitForTimeout(300); };
+const applyAdjust = async () => { await p.click('#cntr-order-adjust-apply'); await p.waitForTimeout(300); };
+
+await openAdjust('discount');
+await p.fill('#cntr-order-adjust-amount', '50');
+await applyAdjust();
+const totalAfterDiscount = await footerTotal();
+assert(totalAfterDiscount.includes('940.00'), `B4: a ৳50 order discount on ৳990 reduces the total to ৳940.00 (has "${totalAfterDiscount}")`);
+
+// Above the 10% ceiling (৳99 on this ৳990 base) — refused, with a visible
+// reason, and the total already on the order is left exactly as it was.
+await openAdjust('discount');
+await p.fill('#cntr-order-adjust-amount', '150');
+await applyAdjust();
+const warningText = ((await p.textContent('#cntr-order-adjust-warning').catch(() => '')) || '').trim();
+assert(warningText.length > 0, `B4: a discount above the ceiling is refused with a visible reason (warning: "${warningText}")`);
+await p.click('#cntr-order-adjust-cancel'); await p.waitForTimeout(300);
+const totalAfterRefusedDiscount = await footerTotal();
+assert(totalAfterRefusedDiscount.includes('940.00'), `B4: the refused discount left the total unchanged (has "${totalAfterRefusedDiscount}")`);
+
+// Order tax adds straight to the total (no ceiling) — ৳940.30 pre-round
+// rounds to the nearest ৳1 step, so the DISPLAYED total stays ৳940.00 and a
+// Round off row of -0.30 appears instead.
+await openAdjust('tax');
+await p.fill('#cntr-order-adjust-amount', '0.30');
+await applyAdjust();
+const totalAfterTax = await footerTotal();
+assert(totalAfterTax.includes('940.00'), `B4: order tax of ৳0.30 rounds away under the ৳1 step, so the total stays ৳940.00 (has "${totalAfterTax}")`);
+const roundOffAfterTax = ((await footerRow('Round off').textContent().catch(() => '')) || '').replace(/\s+/g, ' ').trim();
+assert(roundOffAfterTax.includes('0.30'), `B4: round-off follows the ৳1 step and shows the -0.30 gap (row: "${roundOffAfterTax}")`);
+
+// Shipping also adds straight to the total.
+await openAdjust('shipping');
+await p.fill('#cntr-order-adjust-amount', '10.00');
+await applyAdjust();
+const totalAfterShipping = await footerTotal();
+assert(totalAfterShipping.includes('950.00'), `B4: ৳10 shipping adds straight to the total (has "${totalAfterShipping}")`);
+
+// The footer sums correctly: items - discount + tax + shipping + roundOff.
+const footer = await p.evaluate(() => window.CNTR._pos.footerTotals());
+const summed = footer.items - footer.discount + footer.tax + footer.shipping + footer.roundOff;
+assert(Math.abs(summed - footer.total) < 0.005, `B4: the footer sums correctly (items=${footer.items} discount=${footer.discount} tax=${footer.tax} shipping=${footer.shipping} roundOff=${footer.roundOff} total=${footer.total}, summed=${summed})`);
+
+// Reset back to zero so the tender demo below matches its own totals.
+await openAdjust('discount');
+await p.fill('#cntr-order-adjust-amount', '0');
+await applyAdjust();
+await openAdjust('tax');
+await p.fill('#cntr-order-adjust-amount', '0');
+await applyAdjust();
+await openAdjust('shipping');
+await p.fill('#cntr-order-adjust-amount', '0');
+await applyAdjust();
+const totalAfterReset = await footerTotal();
+assert(totalAfterReset.includes('990.00'), `B4: resetting discount/tax/shipping back to 0 restores ৳990.00 (has "${totalAfterReset}")`);
+
 await p.keyboard.press('F2'); await p.waitForTimeout(500);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(250);
 await p.click('#cntr-tender-add-row'); await p.waitForTimeout(350);

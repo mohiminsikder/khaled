@@ -274,6 +274,47 @@ body {
 	position: relative;
 }
 
+/* B4 — the totals footer. */
+.cntr-pos-footer {
+	padding: 0 20px 12px;
+	flex: 0 0 auto;
+}
+
+.cntr-footer-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 3px 0;
+	font-size: 13px;
+	color: var(--cntr-muted);
+}
+
+.cntr-footer-row span:first-child {
+	flex: 1 1 auto;
+}
+
+.cntr-footer-total {
+	font-size: 16px;
+	font-weight: 700;
+	color: var(--cntr-text);
+}
+
+.cntr-footer-edit {
+	flex: 0 0 auto;
+	width: 24px;
+	height: 24px;
+	border-radius: 4px;
+	border: 1px solid transparent;
+	background: transparent;
+	color: var(--cntr-muted);
+	font-size: 13px;
+}
+
+.cntr-footer-edit:hover {
+	border-color: var(--cntr-border);
+	color: var(--cntr-text);
+}
+
 .cntr-pos-search-row {
 	display: flex;
 	align-items: center;
