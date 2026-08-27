@@ -23,7 +23,8 @@ window.CNTR = {
     cntr_no_sale: true,
     cntr_void_line: true,
     cntr_manage_stock: true,
-    cntr_price_override: true
+    cntr_price_override: true,
+    cntr_close_shift: true
   },
   priceGroups: [
     { id: 1, name: 'Retail', code: 'retail' },
@@ -69,6 +70,24 @@ window.fetch = async (url, opts = {}) => {
   if (u.includes('/sale')) return J({ order_id: 9001, receipt_no: 'R1-000042-0007', html: '<p>receipt</p>' });
   if (u.includes('/quick-add')) return J({ product_id: 9101 });
   if (u.match(/\/price-groups\/2\/overrides/)) return J([{ product_id: 101, variation_id: 0, price: '550.0000' }]);
+  if (u.includes('/shift/x-report')) return J({
+    shift_id: 42,
+    opening_float: '500.0000',
+    sell_by_method: [{ method: 'cash', total: '2000.0000' }, { method: 'card', total: '500.0000' }],
+    sales_taken_total: '2500.0000',
+    sales_total: '2400.0000',
+    refund_by_method: [{ method: 'cash', total: '100.0000' }],
+    refunds_total: '100.0000',
+    expense_by_method: [{ method: 'cash', total: '50.0000' }],
+    expense_total: '50.0000',
+    expected_cash: '2250.0000',
+    formula: { opening: '500.0000', cash_sale: '1900.0000', cash_refund: '100.0000', cash_expense: '50.0000' },
+    products_by_sku: [{ sku: 'TEST-WIDGET-1', name: 'Test Widget', qty: '3', total: '300.0000' }]
+  });
+  if (u.includes('/shift/close')) return J({
+    closed: true,
+    report: { shift: { id: 42, expected_cash: '2250.0000', counted_cash: '2245.0000', variance: '-5.0000' } }
+  });
   return J({});
 };
 window.print = () => {};

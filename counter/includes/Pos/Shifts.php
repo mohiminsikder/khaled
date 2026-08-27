@@ -265,6 +265,160 @@ class Shifts {
 		return true;
 	}
 
+	/**
+	 * B5 — the LIVE X-report: a mid-shift snapshot, callable on an open OR a
+	 * closed shift (every query here is a plain WHERE shift_id = %d over
+	 * rows that never change after they're written, so a closed shift keeps
+	 * returning the exact figures it had at close time — this is what lets
+	 * the till fetch it once more, right after closing, to build the
+	 * printed slip from the SAME numbers the pre-close preview already
+	 * showed, rather than trusting the pre-close fetch to still be fresh).
+	 *
+	 * 'sell'/'refund' are grouped by payment method straight off cntr_tenders
+	 * — real amounts actually taken/paid out, is_change EXCLUDED from sell
+	 * (that money was handed back, never taken) and refund rows never mixed
+	 * into sell (refund_id > 0 is its own bucket). 'sales_total'/
+	 * 'refunds_total' come from cntr_shift_sales instead — the order's own
+	 * value, not the gross tendered amount, which is why sales_total can
+	 * legitimately differ from summing sell_by_method (a cash overpayment
+	 * with change shows up in sell_by_method's cash figure but nets out of
+	 * sales_total, exactly as intended: one table answers "how much of each
+	 * payment type physically moved," the other "how much business was
+	 * actually done").
+	 *
+	 * 'expense' is the cash_out shift_events bucket — a manual drawer
+	 * payout. Nothing writes 'drop' or 'cash_in' yet (Shifts::record_event()'s
+	 * own docblock: no REST route calls it for those types) and B5 does not
+	 * add one, so 'formula' below — the four terms SuperShop-style register
+	 * closes print in words — legitimately omits both without ever going out
+	 * of sync with expected_cash's own six-term arithmetic: as long as those
+	 * two stay at zero, "opening + cash sale − cash refund − cash expense"
+	 * IS "expected_cash", not merely close to it. test_x_report() asserts
+	 * that equality directly rather than assuming it — see docs/BLOCKED.md
+	 * if a future cash-management write path ever makes it stop holding.
+	 *
+	 * @return array|\WP_Error
+	 */
+	public static function x_report( int $shift_id ) {
+		$shift = self::get( $shift_id );
+		if ( ! $shift ) {
+			return new \WP_Error( 'cntr_shift_missing', __( 'Shift not found.', 'counter' ), [ 'status' => 404 ] );
+		}
+
+		global $wpdb;
+		$tenders_table     = Install::table( 'tenders' );
+		$events_table      = Install::table( 'shift_events' );
+		$shift_sales_table = Install::table( 'shift_sales' );
+
+		$sell_by_method = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT method, COALESCE(SUM(amount),0) AS total FROM {$tenders_table}
+				 WHERE shift_id = %d AND is_change = 0 AND refund_id = 0 GROUP BY method",
+				$shift_id
+			),
+			ARRAY_A
+		);
+		foreach ( $sell_by_method as &$row ) {
+			$row['total'] = wc_format_decimal( $row['total'], 4 );
+		}
+		unset( $row );
+
+		$refund_by_method = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT method, COALESCE(SUM(amount),0) AS total FROM {$tenders_table}
+				 WHERE shift_id = %d AND refund_id > 0 GROUP BY method",
+				$shift_id
+			),
+			ARRAY_A
+		);
+		foreach ( $refund_by_method as &$row ) {
+			$row['total'] = wc_format_decimal( $row['total'], 4 );
+		}
+		unset( $row );
+
+		$expense_by_method = $wpdb->get_results(
+			$wpdb->prepare(
+				"SELECT method, COALESCE(SUM(amount),0) AS total FROM {$events_table}
+				 WHERE shift_id = %d AND type = 'cash_out' GROUP BY method",
+				$shift_id
+			),
+			ARRAY_A
+		);
+		$expense_total = '0.0000';
+		foreach ( $expense_by_method as &$row ) {
+			$row['total']  = wc_format_decimal( $row['total'], 4 );
+			$expense_total = bcadd( $expense_total, $row['total'], 4 );
+		}
+		unset( $row );
+
+		$sales_total   = wc_format_decimal( (string) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(total),0) FROM {$shift_sales_table} WHERE shift_id = %d AND kind = 'sale'", $shift_id ) ), 4 );
+		$refunds_total = wc_format_decimal( (string) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(total),0) FROM {$shift_sales_table} WHERE shift_id = %d AND kind = 'return'", $shift_id ) ), 4 );
+
+		$opening_float = wc_format_decimal( (string) $shift['opening_float'], 4 );
+		$expected_cash = self::compute_expected_cash( $shift_id, $opening_float );
+
+		// The same four terms compute_expected_cash() itself is built from
+		// (see its own docblock) — 'cash_sale' already nets change out,
+		// exactly as compute_expected_cash() does with cash_in − change_out.
+		$cash_in    = (string) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$tenders_table} WHERE shift_id = %d AND method = 'cash' AND is_change = 0 AND refund_id = 0", $shift_id ) );
+		$change_out = (string) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$tenders_table} WHERE shift_id = %d AND is_change = 1 AND refund_id = 0", $shift_id ) );
+		$cash_sale  = wc_format_decimal( bcsub( $cash_in, $change_out, 4 ), 4 );
+		$cash_refund = wc_format_decimal( (string) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$events_table} WHERE shift_id = %d AND type = 'refund'", $shift_id ) ), 4 );
+		$cash_expense = wc_format_decimal( (string) $wpdb->get_var( $wpdb->prepare( "SELECT COALESCE(SUM(amount),0) FROM {$events_table} WHERE shift_id = %d AND type = 'cash_out'", $shift_id ) ), 4 );
+
+		return [
+			'shift_id'          => $shift_id,
+			'opening_float'     => $opening_float,
+			'sell_by_method'    => $sell_by_method,
+			'sales_total'       => $sales_total,
+			'refund_by_method'  => $refund_by_method,
+			'refunds_total'     => $refunds_total,
+			'expense_by_method' => $expense_by_method,
+			'expense_total'     => $expense_total,
+			'expected_cash'     => $expected_cash,
+			'formula'           => [
+				'opening'      => $opening_float,
+				'cash_sale'    => $cash_sale,
+				'cash_refund'  => $cash_refund,
+				'cash_expense' => $cash_expense,
+			],
+			'products_by_sku'   => self::products_sold( $shift_id ),
+		];
+	}
+
+	/**
+	 * Line items across every 'sale' this shift rang, aggregated by SKU —
+	 * the X-report/close-slip's own "products sold" section. Loops
+	 * wc_get_order() per row, the same pattern ShiftReport::build() already
+	 * uses for by_channel — bounded by one shift's own sale count, not the
+	 * whole shop's order history.
+	 */
+	public static function products_sold( int $shift_id ): array {
+		global $wpdb;
+		$table     = Install::table( 'shift_sales' );
+		$order_ids = $wpdb->get_col(
+			$wpdb->prepare( "SELECT order_id FROM {$table} WHERE shift_id = %d AND kind = 'sale'", $shift_id )
+		);
+
+		$by_sku = [];
+		foreach ( $order_ids as $order_id ) {
+			$order = wc_get_order( (int) $order_id );
+			if ( ! $order ) {
+				continue;
+			}
+			foreach ( $order->get_items( 'line_item' ) as $item ) {
+				$product = $item->get_product();
+				$sku     = $product && $product->get_sku() ? $product->get_sku() : ( 'ID-' . $item->get_product_id() );
+				if ( ! isset( $by_sku[ $sku ] ) ) {
+					$by_sku[ $sku ] = [ 'sku' => $sku, 'name' => $item->get_name(), 'qty' => '0', 'total' => '0.0000' ];
+				}
+				$by_sku[ $sku ]['qty']   = bcadd( $by_sku[ $sku ]['qty'], wc_format_decimal( $item->get_quantity(), 4 ), 4 );
+				$by_sku[ $sku ]['total'] = bcadd( $by_sku[ $sku ]['total'], wc_format_decimal( $item->get_total(), 4 ), 4 );
+			}
+		}
+		return array_values( $by_sku );
+	}
+
 	public static function get( int $shift_id ): ?array {
 		global $wpdb;
 		$table = Install::table( 'shifts' );

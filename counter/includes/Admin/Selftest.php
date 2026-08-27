@@ -205,6 +205,7 @@ class Selftest {
 		$this->test_price_groups();
 		$this->test_price_group_at_till();
 		$this->test_order_discount();
+		$this->test_x_report();
 		$this->test_payment_accounts();
 		$this->test_rollup();
 		$this->test_reports_channel();
@@ -6543,6 +6544,194 @@ class Selftest {
 		);
 
 		wp_set_current_user( $original_user_id_od );
+	}
+
+	// -- B5: test_x_report() -- 7 checks ----------------------------------------------
+
+	/**
+	 * CASH/BKASH are inactive on peapip.com right now (docs/BLOCKED.md) —
+	 * Pos\Tenders::record()'s own account-active gate refuses a real 'cash'
+	 * SALE tender, which is exactly the tender this test needs for a
+	 * meaningful cash-drawer reconciliation. Orders\Refunds::process()'s
+	 * own record_refund_tenders() has no such gate (it never did — see its
+	 * own code), so the REFUND side can use 'cash' freely; the SALE side's
+	 * cash/card/change rows are written directly to cntr_tenders instead,
+	 * bypassing Tenders::record() entirely — the same "insert the row
+	 * directly to test the read side" technique test_payment_accounts()'s
+	 * own check 6 already uses, not a new pattern invented for this test.
+	 */
+	private function test_x_report(): void {
+		global $wpdb;
+		$tenders_table     = Install::table( 'tenders' );
+		$shift_sales_table = Install::table( 'shift_sales' );
+
+		$main_id     = \Counter\Stock\Locations::default_id();
+		$register_id = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture X-Report Register', 'location_id' => $main_id, 'prefix' => 'ZX' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->register_fixture_ids[] = $register_id;
+		$shift_id = \Counter\Pos\Shifts::open( $register_id, get_current_user_id(), '100.0000' );
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture X-Report Product' );
+		$product->set_regular_price( '100.00' );
+		$product->set_manage_stock( true );
+		$product->set_stock_quantity( 0 );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save();
+		$product_id                  = $product->get_id();
+		$this->product_fixture_ids[] = $product_id;
+
+		Db::transaction(
+			function () use ( $product_id, $main_id ) {
+				\Counter\Stock\Ledger::move(
+					[ 'product_id' => $product_id, 'variation_id' => 0, 'location_id' => $main_id, 'qty_delta' => '20', 'reason' => 'opening', 'ref_type' => 'selftest_x_report', 'ref_id' => 0 ]
+				);
+			}
+		);
+
+		// A ৳300 sale (qty 3 @ ৳100): cash 250 + card 100 tendered = 350,
+		// less 50 change = 300, matching the order total exactly.
+		$order = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product, 'qty' => 3, 'subtotal' => '300.00', 'total' => '300.00' ] ],
+			[ 'register_id' => $register_id, 'shift_id' => $shift_id, 'location_id' => $main_id, 'operator_id' => get_current_user_id(), 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-XREPORT-1' ]
+		);
+		$this->order_fixture_ids[] = $order->get_id();
+		\Counter\Orders\Channel::apply_stock( $order );
+		$order->set_status( 'completed' );
+		$order->save();
+
+		foreach (
+			[
+				[ 'method' => 'cash', 'amount' => '250.0000', 'is_change' => 0 ],
+				[ 'method' => 'card', 'amount' => '100.0000', 'is_change' => 0 ],
+				[ 'method' => 'cash', 'amount' => '50.0000', 'is_change' => 1 ],
+			] as $t
+		) {
+			$wpdb->insert(
+				$tenders_table,
+				[
+					'order_id'   => $order->get_id(),
+					'refund_id'  => 0,
+					'shift_id'   => $shift_id,
+					'method'     => $t['method'],
+					'amount'     => $t['amount'],
+					'is_change'  => $t['is_change'],
+					'reference'  => '',
+					'account_id' => \Counter\Pos\Tenders::account_for_method( $t['method'] ),
+					'user_id'    => get_current_user_id(),
+					'created_at' => Db::now(),
+				]
+			);
+		}
+		$wpdb->insert(
+			$shift_sales_table,
+			[
+				'shift_id'          => $shift_id,
+				'register_id'       => $register_id,
+				'order_id'          => $order->get_id(),
+				'refund_id'         => 0,
+				'kind'              => 'sale',
+				'exchange_group_id' => '',
+				'receipt_no'        => 'SELFTEST-XREPORT-1',
+				'total'             => '300.0000',
+				'created_at'        => Db::now(),
+			]
+		);
+
+		// A ৳100 partial cash refund (qty 1 of the 3 sold) — real, through
+		// Orders\Refunds::process(), so shift_events 'refund' and the
+		// tenders refund row both come from the actual production code
+		// path, not another direct insert.
+		$items  = array_values( $order->get_items( 'line_item' ) );
+		$item_id = $items[0]->get_id();
+		\Counter\Orders\Refunds::process(
+			$order,
+			'100.00',
+			[ $item_id => [ 'qty' => 1, 'refund_total' => 100.00, 'refund_tax' => [] ] ],
+			'selftest x-report refund',
+			$shift_id,
+			[ [ 'method' => 'cash', 'amount' => '100.00' ] ]
+		);
+
+		// A ৳30 manual cash payout — B5's "cash expense".
+		\Counter\Pos\Shifts::record_event( $shift_id, 'cash_out', '30.0000', 'selftest x-report expense', get_current_user_id() );
+
+		$report = \Counter\Pos\Shifts::x_report( $shift_id );
+
+		// 1. Per-method sell totals match the tender rows actually written
+		// (cash 250, card 100 — the raw amounts taken, before change).
+		$sell_by_method = [];
+		foreach ( is_array( $report ) ? ( $report['sell_by_method'] ?? [] ) : [] as $row ) {
+			$sell_by_method[ $row['method'] ] = $row['total'];
+		}
+		$this->check(
+			'test_x_report: per-method sell totals match the tender rows',
+			! is_wp_error( $report ) && '250.0000' === ( $sell_by_method['cash'] ?? null ) && '100.0000' === ( $sell_by_method['card'] ?? null ),
+			wp_json_encode( $report instanceof \WP_Error ? $report->get_error_message() : $sell_by_method )
+		);
+
+		// 2. is_change rows are excluded — cash stays 250.0000, never
+		// inflated to 300 by folding the 50 change row in.
+		$this->check(
+			'test_x_report: is_change rows are excluded',
+			'250.0000' === ( $sell_by_method['cash'] ?? null ),
+			'cash=' . ( $sell_by_method['cash'] ?? 'null' )
+		);
+
+		// 3. Expense is subtracted — the 30.0000 cash_out lands in both the
+		// per-method expense bucket and expected_cash's own arithmetic.
+		$expense_by_method = [];
+		foreach ( is_array( $report ) ? ( $report['expense_by_method'] ?? [] ) : [] as $row ) {
+			$expense_by_method[ $row['method'] ] = $row['total'];
+		}
+		$this->check(
+			'test_x_report: expense is subtracted',
+			is_array( $report ) && '30.0000' === ( $report['expense_total'] ?? null ) && '30.0000' === ( $expense_by_method['cash'] ?? null ),
+			wp_json_encode( [ 'expense_total' => $report['expense_total'] ?? null, 'expense_by_method' => $expense_by_method ] )
+		);
+
+		// 4. Expected cash equals the printed formula — opening + cash sale
+		// − cash refund − cash expense, computed from report['formula']
+		// alone, compared against report['expected_cash'] (itself
+		// Shifts::compute_expected_cash()'s own real six-term result).
+		// opening=100, cash_sale=250-50=200, cash_refund=100, cash_expense=30
+		// -> 100+200-100-30 = 170.
+		$formula_total = is_array( $report )
+			? bcsub( bcsub( bcadd( $report['formula']['opening'], $report['formula']['cash_sale'], 4 ), $report['formula']['cash_refund'], 4 ), $report['formula']['cash_expense'], 4 )
+			: null;
+		$this->check(
+			'test_x_report: expected cash equals the printed formula',
+			is_array( $report ) && '170.0000' === $report['expected_cash'] && 0 === bccomp( (string) $formula_total, $report['expected_cash'], 4 ),
+			wp_json_encode( [ 'expected_cash' => $report['expected_cash'] ?? null, 'formula' => $report['formula'] ?? null, 'formula_total' => $formula_total ] )
+		);
+
+		// 5. A variance is stored on close — counted 165 against expected
+		// 170 is a -5.0000 variance.
+		$close_result = \Counter\Pos\Shifts::close( $shift_id, '165.0000' );
+		$shift_after_close = \Counter\Pos\Shifts::get( $shift_id );
+		$this->check(
+			'test_x_report: a variance is stored on close',
+			true === $close_result && $shift_after_close && '170.0000' === $shift_after_close['expected_cash'] && '165.0000' === $shift_after_close['counted_cash'] && '-5.0000' === $shift_after_close['variance'],
+			wp_json_encode( $close_result instanceof \WP_Error ? $close_result->get_error_message() : $shift_after_close )
+		);
+
+		// 6. Closing twice is refused.
+		$second_close = \Counter\Pos\Shifts::close( $shift_id, '999.0000' );
+		$this->check(
+			'test_x_report: closing twice is refused',
+			$second_close instanceof \WP_Error && 'cntr_shift_closed' === $second_close->get_error_code(),
+			wp_json_encode( $second_close instanceof \WP_Error ? $second_close->get_error_code() : $second_close )
+		);
+
+		// 7. A closed shift is immutable — the refused second close above
+		// left the first close's own figures untouched.
+		$shift_after_second_attempt = \Counter\Pos\Shifts::get( $shift_id );
+		$this->check(
+			'test_x_report: a closed shift is immutable',
+			$shift_after_second_attempt && '165.0000' === $shift_after_second_attempt['counted_cash'] && '-5.0000' === $shift_after_second_attempt['variance'],
+			wp_json_encode( $shift_after_second_attempt )
+		);
 	}
 
 	// -- P4.6: test_payment_accounts() -- 6 checks --------------------------------------

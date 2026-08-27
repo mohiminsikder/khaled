@@ -187,6 +187,35 @@
 			noShiftOpenTitle: 'No shift is open on this register',
 			openingFloatLabel: 'Opening float (৳)',
 			openShiftBtn: 'Open shift',
+
+			xReportAria: 'X-report',
+			xReportTitle: 'X-report',
+			xReportFailed: 'Could not load the X-report — try again.',
+			sellByMethodLabel: 'Sell by method',
+			refundByMethodLabel: 'Refund by method',
+			expenseByMethodLabel: 'Expense by method',
+			totalSalesLabel: 'Total sales',
+			totalRefundLabel: 'Total refund',
+			totalExpenseLabel: 'Total expense',
+			expectedCashLabel: 'Expected cash',
+			productsSoldLabel: 'Products sold',
+			skuLabel: 'SKU',
+			qtySoldLabel: 'Qty',
+			formulaSentence: 'Opening %opening% + cash sale %sale% − cash refund %refund% − cash expense %expense% = expected %expected%',
+			noneLabel: 'None',
+
+			closeRegisterAria: 'Close register',
+			closeRegisterTitle: 'Close register',
+			capDenyCloseShift: "You don't have permission to close this register.",
+			countedCashLabel: 'Counted cash (৳)',
+			varianceLabel: 'Variance',
+			varianceShort: 'Short by %amount%',
+			varianceOver: 'Over by %amount%',
+			varianceExact: 'Exact count',
+			confirmCloseBtn: 'Confirm & print',
+			closeRegisterFailed: 'Could not close the register — try again.',
+			closeSlipTitle: 'REGISTER CLOSED',
+			countedCashLabelShort: 'Counted',
 		},
 		CFG.strings || {}
 	);
@@ -2354,6 +2383,255 @@
 		if (cancelBtn) cancelBtn.addEventListener('click', closeOrderAdjust);
 	}
 
+	// -- B5: live X-report and register close ------------------------------------
+
+	let xReportState = null; // { report } | { error: true }
+
+	function renderMethodTable(rows) {
+		if (!rows || !rows.length) return `<p>${STRINGS.noneLabel}</p>`;
+		return `<table class="cntr-report-table">${rows
+			.map((r) => `<tr><td>${escapeHtml(methodLabel(r.method))}</td><td>${formatMoney(r.total)}</td></tr>`)
+			.join('')}</table>`;
+	}
+
+	function renderProductsBySku(rows) {
+		if (!rows || !rows.length) return `<p>${STRINGS.noneLabel}</p>`;
+		return `<table class="cntr-report-table">
+			<thead><tr><th>${STRINGS.skuLabel}</th><th>${STRINGS.qtySoldLabel}</th><th>${STRINGS.footerTotalLabel}</th></tr></thead>
+			${rows
+				.map(
+					(r) =>
+						`<tr><td>${escapeHtml(r.sku)} — ${escapeHtml(r.name)}</td><td>${escapeHtml(String(parseFloat(r.qty) || 0))}</td><td>${formatMoney(r.total)}</td></tr>`
+				)
+				.join('')}
+		</table>`;
+	}
+
+	function formulaSentence(formula, expected) {
+		return fmt(STRINGS.formulaSentence, {
+			opening: formatMoney(formula.opening),
+			sale: formatMoney(formula.cash_sale),
+			refund: formatMoney(formula.cash_refund),
+			expense: formatMoney(formula.cash_expense),
+			expected: formatMoney(expected),
+		});
+	}
+
+	async function openXReport() {
+		xReportState = {};
+		renderXReport();
+		try {
+			const res = await fetch(`${CFG.restUrl}/shift/x-report?register_id=${CFG.registerId}`, {
+				headers: { 'X-WP-Nonce': CFG.nonce },
+				credentials: 'same-origin',
+			});
+			if (!res.ok) throw new Error('bad status');
+			xReportState = { report: await res.json() };
+		} catch (e) {
+			xReportState = { error: true };
+		}
+		renderXReport();
+	}
+
+	function closeXReport() {
+		xReportState = null;
+		const root = document.getElementById('cntr-xreport');
+		if (root) {
+			root.hidden = true;
+			root.innerHTML = '';
+		}
+		restoreFocus();
+	}
+
+	function renderXReport() {
+		const root = document.getElementById('cntr-xreport');
+		if (!root || !xReportState) return;
+		const report = xReportState.report;
+		root.innerHTML = `
+			<div class="cntr-modal-box">
+				<h2>${STRINGS.xReportTitle}</h2>
+				${
+					xReportState.error
+						? `<p class="cntr-inline-warning">${STRINGS.xReportFailed}</p>`
+						: !report
+							? `<p>…</p>`
+							: `<p>${STRINGS.openingFloatLabel.replace(' (৳)', '')}: ${formatMoney(report.opening_float)}</p>
+								<h3>${STRINGS.sellByMethodLabel}</h3>
+								${renderMethodTable(report.sell_by_method)}
+								<p><b>${STRINGS.totalSalesLabel}:</b> ${formatMoney(report.sales_total)}</p>
+								<h3>${STRINGS.refundByMethodLabel}</h3>
+								${renderMethodTable(report.refund_by_method)}
+								<p><b>${STRINGS.totalRefundLabel}:</b> ${formatMoney(report.refunds_total)}</p>
+								<h3>${STRINGS.expenseByMethodLabel}</h3>
+								${renderMethodTable(report.expense_by_method)}
+								<p><b>${STRINGS.totalExpenseLabel}:</b> ${formatMoney(report.expense_total)}</p>
+								<p><b>${STRINGS.expectedCashLabel}:</b> ${formatMoney(report.expected_cash)}</p>
+								<p class="cntr-report-formula">${formulaSentence(report.formula, report.expected_cash)}</p>
+								<h3>${STRINGS.productsSoldLabel}</h3>
+								${renderProductsBySku(report.products_by_sku)}`
+				}
+				<div class="cntr-modal-actions">
+					<button type="button" id="cntr-xreport-close">${STRINGS.cancelBtn}</button>
+				</div>
+			</div>
+		`;
+		root.hidden = false;
+		const closeBtn = document.getElementById('cntr-xreport-close');
+		if (closeBtn) closeBtn.addEventListener('click', closeXReport);
+	}
+
+	let closeRegisterState = null; // { report } | { report, countedCash } | { error: true }
+
+	function openCloseRegister() {
+		if (!requireCap('cntr_close_shift', 'capDenyCloseShift')) return;
+		closeRegisterState = {};
+		renderCloseRegister();
+		fetch(`${CFG.restUrl}/shift/x-report?register_id=${CFG.registerId}`, {
+			headers: { 'X-WP-Nonce': CFG.nonce },
+			credentials: 'same-origin',
+		})
+			.then((res) => {
+				if (!res.ok) throw new Error('bad status');
+				return res.json();
+			})
+			.then((report) => {
+				closeRegisterState = { report, countedCash: '' };
+				renderCloseRegister();
+			})
+			.catch(() => {
+				closeRegisterState = { error: true };
+				renderCloseRegister();
+			});
+	}
+
+	function closeCloseRegister() {
+		closeRegisterState = null;
+		const root = document.getElementById('cntr-close-register');
+		if (root) {
+			root.hidden = true;
+			root.innerHTML = '';
+		}
+		restoreFocus();
+	}
+
+	/**
+	 * The variance shown here is a PREVIEW — computed client-side against the
+	 * report this modal fetched when it opened, purely so the cashier sees
+	 * it before confirming (the goal: "reconciles ... without opening
+	 * WordPress"). The AUTHORITATIVE variance is whatever POST /shift/close
+	 * computes and stores server-side a moment later in submitCloseRegister()
+	 * — this preview is never itself written anywhere.
+	 */
+	function varianceWords(countedCash, expectedCash) {
+		const variance = (parseFloat(countedCash) || 0) - (parseFloat(expectedCash) || 0);
+		if (Math.abs(variance) < 0.005) return STRINGS.varianceExact;
+		return fmt(variance < 0 ? STRINGS.varianceShort : STRINGS.varianceOver, { amount: formatMoney(Math.abs(variance)) });
+	}
+
+	function renderCloseRegister() {
+		const root = document.getElementById('cntr-close-register');
+		if (!root || !closeRegisterState) return;
+		const report = closeRegisterState.report;
+		root.innerHTML = `
+			<div class="cntr-modal-box">
+				<h2>${STRINGS.closeRegisterTitle}</h2>
+				${
+					closeRegisterState.error
+						? `<p class="cntr-inline-warning">${STRINGS.xReportFailed}</p>`
+						: !report
+							? `<p>…</p>`
+							: `<p><b>${STRINGS.expectedCashLabel}:</b> ${formatMoney(report.expected_cash)}</p>
+								<label>${STRINGS.countedCashLabel}
+									<input id="cntr-close-register-counted" type="text" inputmode="decimal" value="${closeRegisterState.countedCash || ''}">
+								</label>
+								<p id="cntr-close-register-variance">${STRINGS.varianceLabel}: ${varianceWords(closeRegisterState.countedCash || '0', report.expected_cash)}</p>
+								<span id="cntr-close-register-warning" class="cntr-inline-warning" hidden></span>`
+				}
+				<div class="cntr-modal-actions">
+					${report ? `<button type="button" id="cntr-close-register-submit">${STRINGS.confirmCloseBtn}</button>` : ''}
+					<button type="button" id="cntr-close-register-cancel">${STRINGS.cancelBtn}</button>
+				</div>
+			</div>
+		`;
+		root.hidden = false;
+		const countedInput = document.getElementById('cntr-close-register-counted');
+		if (countedInput) {
+			countedInput.focus();
+			countedInput.addEventListener('input', () => {
+				closeRegisterState.countedCash = countedInput.value;
+				const varianceEl = document.getElementById('cntr-close-register-variance');
+				if (varianceEl && report) varianceEl.textContent = `${STRINGS.varianceLabel}: ${varianceWords(countedInput.value, report.expected_cash)}`;
+			});
+			submitOnEnter(countedInput, submitCloseRegister);
+		}
+		const submitBtn = document.getElementById('cntr-close-register-submit');
+		if (submitBtn) submitBtn.addEventListener('click', submitCloseRegister);
+		const cancelBtn = document.getElementById('cntr-close-register-cancel');
+		if (cancelBtn) cancelBtn.addEventListener('click', closeCloseRegister);
+	}
+
+	function buildCloseSlipHtml(report, countedCash, variance) {
+		return `<html><body style="${RECEIPT_FONT_STYLE}">
+			<p style="font-weight:bold;font-size:1.2em;border:2px solid #000;padding:4px;text-align:center;">${STRINGS.closeSlipTitle}</p>
+			<p>${escapeHtml(new Date().toLocaleString())}</p>
+			<p>${STRINGS.totalSalesLabel}: ${formatMoney(report.sales_total)}</p>
+			<p>${STRINGS.totalRefundLabel}: ${formatMoney(report.refunds_total)}</p>
+			<p>${STRINGS.totalExpenseLabel}: ${formatMoney(report.expense_total)}</p>
+			<p>${formulaSentence(report.formula, report.expected_cash)}</p>
+			<p>${STRINGS.countedCashLabelShort}: ${formatMoney(countedCash)}</p>
+			<p>${STRINGS.varianceLabel}: ${varianceWords(countedCash, report.expected_cash)} (${formatMoney(variance)})</p>
+			<h3>${STRINGS.productsSoldLabel}</h3>
+			${renderProductsBySku(report.products_by_sku)}
+		</body></html>`;
+	}
+
+	/**
+	 * The report this prints from is a FRESH fetch taken right after the
+	 * close succeeds, not the pre-close preview — x_report() stays valid to
+	 * call on an already-closed shift (see its own docblock: every query is
+	 * a plain WHERE shift_id = %d over rows that don't change post-close),
+	 * so this is the authoritative, final snapshot, never the client's own
+	 * possibly-stale one.
+	 */
+	async function submitCloseRegister() {
+		if (!closeRegisterState || !closeRegisterState.report) return;
+		const report = closeRegisterState.report;
+		const countedCash = closeRegisterState.countedCash || '0';
+		const warn = document.getElementById('cntr-close-register-warning');
+		try {
+			const res = await fetch(`${CFG.restUrl}/shift/close`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', 'X-WP-Nonce': CFG.nonce },
+				credentials: 'same-origin',
+				body: JSON.stringify({ shift_id: report.shift_id, counted_cash: countedCash }),
+			});
+			if (!res.ok) throw new Error('bad status');
+			const data = await res.json();
+			const variance = data.report && data.report.shift ? data.report.shift.variance : (parseFloat(countedCash) || 0) - (parseFloat(report.expected_cash) || 0);
+
+			// Re-fetch by shift_id (not register_id — the register no longer
+			// has an OPEN shift to resolve) for the final print: the freshest
+			// possible snapshot, taken after close, rather than trusting the
+			// pre-close preview to still be accurate.
+			const finalRes = await fetch(`${CFG.restUrl}/shift/x-report?shift_id=${report.shift_id}`, {
+				headers: { 'X-WP-Nonce': CFG.nonce },
+				credentials: 'same-origin',
+			});
+			const finalReport = finalRes.ok ? await finalRes.json() : report;
+
+			closeCloseRegister();
+			printReceipt(buildCloseSlipHtml(finalReport, countedCash, variance));
+			CFG.shiftId = 0;
+			await resolveShift();
+			render();
+		} catch (e) {
+			if (warn) {
+				warn.hidden = false;
+				warn.textContent = STRINGS.closeRegisterFailed;
+			}
+		}
+	}
+
 	let noSalePromptState = null; // {}
 
 	function noSale() {
@@ -2982,6 +3260,12 @@
 					<span id="cntr-net-status" class="cntr-net-status ${navigator.onLine ? 'cntr-net-online' : 'cntr-net-offline'}">${navigator.onLine ? STRINGS.netOnline : STRINGS.netOffline}</span>
 					${outboxLockedState ? `<span id="cntr-outbox-locked" class="cntr-outbox-locked">${STRINGS.outboxLocked}</span>` : ''}
 					<span class="cntr-pos-shift">${STRINGS.shiftLabel} ${escapeHtml(shiftLabel)}</span>
+					<button type="button" id="cntr-xreport-btn" class="cntr-toolbar-icon" aria-label="${STRINGS.xReportAria}" title="${STRINGS.xReportAria}">&#128188;</button>
+					${
+						CFG.caps && CFG.caps.cntr_close_shift
+							? `<button type="button" id="cntr-close-register-btn" class="cntr-toolbar-icon" aria-label="${STRINGS.closeRegisterAria}" title="${STRINGS.closeRegisterAria}">&#10062;</button>`
+							: ''
+					}
 				</header>
 				<div class="cntr-pos-main">
 					<section class="cntr-panel cntr-panel-customer">
@@ -3135,6 +3419,8 @@
 			<div id="cntr-no-sale" class="cntr-modal" hidden></div>
 			<div id="cntr-held" class="cntr-modal" hidden></div>
 			<div id="cntr-order-adjust" class="cntr-modal" hidden></div>
+			<div id="cntr-xreport" class="cntr-modal" hidden></div>
+			<div id="cntr-close-register" class="cntr-modal" hidden></div>
 		`;
 
 		const search = document.getElementById('cntr-search');
@@ -3214,6 +3500,12 @@
 		root.querySelectorAll('.cntr-footer-edit').forEach((btn) => {
 			btn.addEventListener('click', () => openOrderAdjust(btn.dataset.field));
 		});
+
+		// B5 — the 💼 X-report and ❎ close-register toolbar icons.
+		const xReportBtn = document.getElementById('cntr-xreport-btn');
+		if (xReportBtn) xReportBtn.addEventListener('click', openXReport);
+		const closeRegisterBtn = document.getElementById('cntr-close-register-btn');
+		if (closeRegisterBtn) closeRegisterBtn.addEventListener('click', openCloseRegister);
 
 		// B1 — the tile grid: a category chip narrows gridProducts(), a tile
 		// tap adds 1 unit the same way a search-result click does.

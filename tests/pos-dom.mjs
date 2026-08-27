@@ -220,6 +220,34 @@ await setRow(2, 'credit', '240');
 await p.click('h2').catch(() => {}); await p.waitForTimeout(500);
 await shot('11-split-tender-credit');
 console.log('SUMMARY:', (await p.textContent('.cntr-tender-summary')).replace(/\s+/g, ' ').trim());
+await p.click('#cntr-tender-cancel'); await p.waitForTimeout(300); // close the modal so B5's header buttons are reachable
+
+// -- B5: the live X-report (💼) and register close (❎). Fixture served by
+// pos-harness.html's own /shift/x-report and /shift/close stubs — a fixed
+// snapshot unrelated to this file's own cart/tender state above.
+await p.evaluate(() => { window.__req.length = 0; }); // only care about requests from here on
+await p.click('#cntr-xreport-btn'); await p.waitForTimeout(400);
+const xReportText = ((await p.textContent('#cntr-xreport')) || '').replace(/\s+/g, ' ').trim();
+assert(xReportText.includes('2,400.00'), `B5: the X-report shows total sales from the live snapshot (text: "${xReportText}")`);
+assert(xReportText.includes('2,250.00'), `B5: the X-report shows expected cash from the live snapshot (text: "${xReportText}")`);
+assert(xReportText.includes('TEST-WIDGET-1'), `B5: the X-report lists products sold by SKU (text: "${xReportText}")`);
+await p.click('#cntr-xreport-close'); await p.waitForTimeout(300);
+assert(await p.isHidden('#cntr-xreport'), 'B5: the X-report modal closes');
+
+await p.click('#cntr-close-register-btn'); await p.waitForTimeout(400);
+const preCountText = ((await p.textContent('#cntr-close-register')) || '').replace(/\s+/g, ' ').trim();
+assert(preCountText.includes('2,250.00'), `B5: the close-register modal shows expected cash before a count is entered (text: "${preCountText}")`);
+await p.fill('#cntr-close-register-counted', '2245'); await p.waitForTimeout(300);
+const varianceText = (await p.textContent('#cntr-close-register-variance').catch(() => '')) || '';
+assert(varianceText.includes('Short') && varianceText.includes('5.00'), `B5: entering a counted amount shows the variance before confirming (text: "${varianceText}")`);
+
+await p.click('#cntr-close-register-submit'); await p.waitForTimeout(500);
+const closeCall = await p.evaluate(() => (window.__req || []).find((r) => r.url.includes('/shift/close')));
+let closeBody = null;
+try { closeBody = closeCall ? JSON.parse(closeCall.opts.body) : null; } catch (e) { closeBody = null; }
+assert(!!closeCall, 'B5: confirming the close posts to /shift/close');
+assert(!!closeBody && 42 === closeBody.shift_id && '2245' === closeBody.counted_cash, `B5: the close posts the right shift_id and counted_cash (body: ${JSON.stringify(closeBody)})`);
+assert(await p.isHidden('#cntr-close-register'), 'B5: the close-register modal closes after confirming');
 
 await b.close();
 console.log(failures === 0 ? 'ALL PASS' : `${failures} FAILURE(S)`);

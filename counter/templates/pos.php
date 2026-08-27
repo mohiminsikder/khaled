@@ -46,6 +46,10 @@ $bootstrap = [
 		'cntr_price_override' => current_user_can( 'cntr_price_override' ),
 		'cntr_no_sale'        => current_user_can( 'cntr_no_sale' ),
 		'cntr_manage_stock'   => current_user_can( 'cntr_manage_stock' ),
+		// B5 — same guard_any() shape as /shift/close's own permission
+		// callback (Rest\Shift::register_routes()): closing your own shift
+		// OR someone else's OR blanket terminal access, any one is enough.
+		'cntr_close_shift'    => current_user_can( 'cntr_close_shift' ) || current_user_can( 'cntr_close_any_shift' ) || current_user_can( 'cntr_terminal_access' ),
 	],
 	// F7 (COUNTERFRONTEND.md) — the quick-add form's own unit picker.
 	// Shop-wide and rarely changes mid-shift, so baked into the bootstrap
@@ -218,6 +222,36 @@ $bootstrap = [
 		'noShiftOpenTitle'         => __( 'No shift is open on this register', 'counter' ),
 		'openingFloatLabel'        => __( 'Opening float (৳)', 'counter' ),
 		'openShiftBtn'             => __( 'Open shift', 'counter' ),
+
+		'xReportAria'              => __( 'X-report', 'counter' ),
+		'xReportTitle'             => __( 'X-report', 'counter' ),
+		'xReportFailed'            => __( 'Could not load the X-report — try again.', 'counter' ),
+		'sellByMethodLabel'        => __( 'Sell by method', 'counter' ),
+		'refundByMethodLabel'      => __( 'Refund by method', 'counter' ),
+		'expenseByMethodLabel'     => __( 'Expense by method', 'counter' ),
+		'totalSalesLabel'          => __( 'Total sales', 'counter' ),
+		'totalRefundLabel'         => __( 'Total refund', 'counter' ),
+		'totalExpenseLabel'        => __( 'Total expense', 'counter' ),
+		'expectedCashLabel'        => __( 'Expected cash', 'counter' ),
+		'productsSoldLabel'        => __( 'Products sold', 'counter' ),
+		'skuLabel'                 => __( 'SKU', 'counter' ),
+		'qtySoldLabel'             => __( 'Qty', 'counter' ),
+		/* translators: all five are formatted money amounts */
+		'formulaSentence'          => __( 'Opening %opening% + cash sale %sale% − cash refund %refund% − cash expense %expense% = expected %expected%', 'counter' ),
+		'noneLabel'                => __( 'None', 'counter' ),
+
+		'closeRegisterAria'        => __( 'Close register', 'counter' ),
+		'closeRegisterTitle'       => __( 'Close register', 'counter' ),
+		'capDenyCloseShift'        => __( "You don't have permission to close this register.", 'counter' ),
+		'countedCashLabel'         => __( 'Counted cash (৳)', 'counter' ),
+		'varianceLabel'            => __( 'Variance', 'counter' ),
+		'varianceShort'            => __( 'Short by %amount%', 'counter' ),
+		'varianceOver'             => __( 'Over by %amount%', 'counter' ),
+		'varianceExact'            => __( 'Exact count', 'counter' ),
+		'confirmCloseBtn'          => __( 'Confirm & print', 'counter' ),
+		'closeRegisterFailed'      => __( 'Could not close the register — try again.', 'counter' ),
+		'closeSlipTitle'           => __( 'REGISTER CLOSED', 'counter' ),
+		'countedCashLabelShort'    => __( 'Counted', 'counter' ),
 	],
 ];
 

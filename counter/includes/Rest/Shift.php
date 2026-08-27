@@ -91,6 +91,41 @@ class Shift {
 			]
 		);
 
+		// B5 — the live X-report. Same low bar as /shift/current above
+		// (using the till, not closing it) since this is a read-only
+		// snapshot; the actual close stays gated separately below.
+		// register_id resolves the register's CURRENTLY open shift (the
+		// normal, pre-close case — the 💼 icon and the close-preview both
+		// use this); shift_id looks up one shift directly regardless of
+		// open/closed state, which is what the close flow's own FINAL print
+		// needs — by the moment it runs, the shift it wants is the one that
+		// was just closed a request ago, so register_id can no longer find
+		// it (open_for_register() only ever matches an open shift). Exactly
+		// one of the two is required.
+		register_rest_route(
+			$ns,
+			'/shift/x-report',
+			[
+				'methods'             => 'GET',
+				'callback'            => [ self::class, 'x_report' ],
+				'permission_callback' => Router::guard_any( [ 'cntr_use_pos', 'cntr_terminal_access' ] ),
+				'args'                => [
+					'register_id' => [
+						'required'          => false,
+						'type'              => 'integer',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && $v > 0,
+						'sanitize_callback' => 'absint',
+					],
+					'shift_id'    => [
+						'required'          => false,
+						'type'              => 'integer',
+						'validate_callback' => static fn( $v ) => is_numeric( $v ) && $v > 0,
+						'sanitize_callback' => 'absint',
+					],
+				],
+			]
+		);
+
 		// F5 (COUNTERFRONTEND.md) — Shifts::record_event() and the 'no_sale'
 		// shift-event type both already existed (P1.16's Z-report and P6.5's
 		// CashierPerformance both already read them back), but nothing ever
@@ -150,6 +185,26 @@ class Shift {
 		Audit::log( 'no_sale', 'shift', $shift_id, null, [ 'reason' => $reason, 'register_id' => $register_id ], $operator_id );
 
 		return rest_ensure_response( [ 'ok' => true ] );
+	}
+
+	/**
+	 * @return \WP_REST_Response|\WP_Error
+	 */
+	public static function x_report( \WP_REST_Request $req ) {
+		$shift_id = (int) $req->get_param( 'shift_id' );
+		if ( ! $shift_id ) {
+			$register_id = (int) $req->get_param( 'register_id' );
+			$shift       = $register_id ? Shifts::open_for_register( $register_id ) : null;
+			if ( ! $shift ) {
+				return new \WP_Error( 'cntr_shift_required', __( 'No open shift on this register.', 'counter' ), [ 'status' => 409 ] );
+			}
+			$shift_id = (int) $shift['id'];
+		}
+		$report = Shifts::x_report( $shift_id );
+		if ( is_wp_error( $report ) ) {
+			return $report;
+		}
+		return rest_ensure_response( $report );
 	}
 
 	public static function current( \WP_REST_Request $req ) {

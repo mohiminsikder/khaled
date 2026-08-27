@@ -315,6 +315,49 @@ body {
 	color: var(--cntr-text);
 }
 
+/* B5 — the 💼 X-report / ❎ close-register toolbar icons, and the report
+   tables both their modals share. */
+.cntr-toolbar-icon {
+	flex: 0 0 auto;
+	width: 32px;
+	height: 32px;
+	border-radius: 6px;
+	border: 1px solid transparent;
+	background: transparent;
+	font-size: 17px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.cntr-toolbar-icon:hover {
+	border-color: var(--cntr-border);
+	background: var(--cntr-bg);
+}
+
+.cntr-report-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin: 4px 0 12px;
+	font-size: 13px;
+}
+
+.cntr-report-table td,
+.cntr-report-table th {
+	padding: 3px 6px;
+	text-align: left;
+	border-bottom: 1px solid var(--cntr-border);
+}
+
+.cntr-report-table td:last-child,
+.cntr-report-table th:last-child {
+	text-align: right;
+}
+
+.cntr-report-formula {
+	font-weight: 600;
+	margin: 8px 0 16px;
+}
+
 .cntr-pos-search-row {
 	display: flex;
 	align-items: center;
