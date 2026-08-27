@@ -25,6 +25,8 @@ source "$LIB/common.sh"
 source "$LIB/accounts.sh"
 # shellcheck source=lib/pack.sh
 source "$LIB/pack.sh"
+# shellcheck source=lib/graph.sh
+source "$LIB/graph.sh"
 
 MAX_PHASES="${AP_MAX_PHASES:-60}"
 MAX_TURNS="${AP_MAX_TURNS:-25}"
@@ -109,7 +111,7 @@ run_phase() {
   #    case after a power cut, and it costs zero model tokens to notice.
   if [[ -n "$verify" ]] && run_verify "$verify" "$dir"; then
     log "$p — verify already passes, no work needed"
-    set_phase_status "$p" done
+    set_phase_status "$p" "done"
     journal "$p done (0m, skipped) — verify already green on entry"
     git -C "$dir" add -A >/dev/null 2>&1
     git -C "$dir" commit -q -m "autopilot: $p (already satisfied)" >/dev/null 2>&1 || true
@@ -151,7 +153,7 @@ Touch only the files named in the phase's files: list. When done, update
 
     if [[ $rc -eq 0 ]] && run_verify "$verify" "$dir"; then
       local dur=$(( ($(date +%s) - started) / 60 ))
-      set_phase_status "$p" done
+      set_phase_status "$p" "done"
       git -C "$dir" add -A >/dev/null 2>&1
       git -C "$dir" commit -q -m "autopilot: $p — $(phase_field "$p" done_when)" >/dev/null 2>&1 || true
       journal "$p done (${dur}m, $model) — verify green"
@@ -188,7 +190,8 @@ Touch only the files named in the phase's files: list. When done, update
 # prompt cache per lane, which is why LANES defaults to 3 rather than 8.
 
 run_lane() {
-  local p="$1" wt="$AP/wt/$p" br="autopilot-lane-$p"
+  local p="$1"
+  local wt="$AP/wt/$p" br="autopilot-lane-$p"
   git -C "$PROJECT_DIR" worktree add -q -B "$br" "$wt" HEAD 2>>"$AP/driver.log" || return 1
   ( cd "$wt" && run_phase "$p" "$wt" )
   local rc=$?
@@ -213,7 +216,13 @@ select_batch() {
     (( ${#batch[@]} >= LANES )) && break
     phase_ready "$p" || continue
     ok=1
-    for q in "${batch[@]}"; do phases_disjoint "$p" "$q" || { ok=0; break; }; done
+    for q in "${batch[@]}"; do
+      phases_disjoint "$p" "$q" || { ok=0; break; }
+      # files: lists are a claim. With a code graph the driver can verify the
+      # claim instead of trusting it, which is what makes lanes safe on a plan
+      # you have not read.
+      if ! graph_lane_safe "$p" "$q" || ! graph_lane_safe "$q" "$p"; then ok=0; break; fi
+    done
     (( ok )) && batch+=("$p")
   done
   # An empty array must print nothing at all: printf '%s\n' "" emits a blank
@@ -231,6 +240,7 @@ if [[ "${1:-}" != "--resume" ]]; then
   rm -f "$AP/HALT" "$AP/QUOTA" "$AP/CURSOR" "$AP/.api-fallback-used"
   acct_set "$(acct_list | head -1)"
 
+  graph_refresh   # deterministic, no LLM — a stale graph is worse than no graph
   log "PREFLIGHT + PLAN"
   invoke "$(model_for_class hard)" "Use the autopilot skill. Run Phase 0 PREFLIGHT (60s cap)
 and Phase 1 PLAN for the goal below, then stop without executing any phase.
@@ -302,6 +312,7 @@ for (( i=1; i<=MAX_PHASES; i++ )); do
   fi
 
   completed=$(( completed + ${#batch[@]} ))
+  graph_refresh
   [[ -n "$PUSH_BRANCH" ]] && git push -q -u origin "HEAD:$PUSH_BRANCH" 2>>"$AP/driver.log" || true
 
   # Per-phase verification catches local breakage. Only a full run catches
@@ -323,7 +334,7 @@ else
   suite="not configured"
 fi
 count_status() { local c; c=$(grep -c "^status: $1" "$AP/PLAN.md" 2>/dev/null || true); echo "${c:-0}"; }
-d=$(count_status done); b=$(count_status blocked); n=$(count_status pending)
+d=$(count_status "done"); b=$(count_status "blocked"); n=$(count_status "pending")
 msg="Autopilot finished — done:$d blocked:$b pending:$n · full suite: $suite"
 log "$msg"; notify "$msg"
 "${PROJECT_DIR}/scripts/autopilot-report.sh" 2>/dev/null || true

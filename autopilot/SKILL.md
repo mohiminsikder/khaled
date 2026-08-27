@@ -89,7 +89,9 @@ change plus its test. If it would need compaction to finish, it is two phases.
 
 **Disjointness rule:** phases that touch no common file and share no dependency edge
 will be run *in parallel*, so `files:` must be accurate. Overlapping `files:` between
-concurrent phases is the one plan error that produces a merge conflict at 3am.
+concurrent phases is the one plan error that produces a merge conflict at 3am. If a code
+graph is available the driver verifies this claim rather than trusting it — see
+`references/code-graph.md`.
 
 If no meaningful `verify` exists for a phase, write one first as its own phase. An
 unverifiable phase in an unattended run is just an unreviewed diff.
@@ -107,7 +109,9 @@ billed. The model is asked for one thing only — the diff.
    floor to fall back to.
 3. **Pack.** The driver greps the phase's `files:` and writes the relevant spans to
    `.autopilot/pack/P<n>.md`. The model starts already knowing where the code is
-   instead of spending four turns finding out.
+   instead of spending four turns finding out. Where a code graph exists, the pack also
+   names the files that *depend* on the ones being changed — the question grep cannot
+   answer cheaply and the model would otherwise pay several turns to discover.
 4. **Execute.** Only the files named in the phase. Touching files outside `files:`
    means the plan was wrong — update `PLAN.md` and say so in the journal rather than
    silently widening the blast radius.
@@ -230,6 +234,10 @@ can redirect in the morning. `references/phase-protocol.md` has the full decisio
 command. `assets/settings.snippet.json` holds the permission rules, hooks, and
 cost-control settings that keep a run non-interactive without handing over blanket
 approval.
+
+An optional code graph (`references/code-graph.md`) makes the parallel-lane safety check
+real instead of trusting the plan, and tells each phase what its change can reach. It is
+free and local to build. The run works identically without it.
 
 Read `references/setup.md` before the first run — it covers the permission model and the
 tradeoff you are making by running unattended at all. Read `references/resilience.md`

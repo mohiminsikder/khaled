@@ -15,7 +15,7 @@ AP="$(pwd)/.autopilot"
 ENVF="$AP/accounts.env"
 mkdir -p "$AP"
 [[ -f "$ENVF" ]] || printf 'AP_PROFILES="default"\n' > "$ENVF"
-# shellcheck disable=SC1090
+# shellcheck disable=SC1090,SC1091
 source "$ENVF"
 
 profile_dir() { [[ "$1" == "default" ]] && echo "$HOME/.claude" || echo "${1/#\~/$HOME}"; }
@@ -24,7 +24,7 @@ profile_dir() { [[ "$1" == "default" ]] && echo "$HOME/.claude" || echo "${1/#\~
 check_one() {
   local p="$1" out rc
   if [[ "$p" == "default" ]]; then unset CLAUDE_CONFIG_DIR
-  else export CLAUDE_CONFIG_DIR="$(profile_dir "$p")"; fi
+  else local d; d=$(profile_dir "$p"); export CLAUDE_CONFIG_DIR="$d"; fi
 
   out=$(claude -p --max-turns 1 --output-format text "reply with the word ok" 2>&1); rc=$?
   if [[ $rc -ne 0 || "$out" == *"Please run /login"* || "$out" == *"Invalid authentication"* ]]; then

@@ -110,10 +110,36 @@ touch .autopilot/HALT
 | `AP_MODEL_LOGIC` | `sonnet` | The workhorse |
 | `AP_MODEL_MECH` | `haiku` | Mechanical phases |
 | `AP_MODEL_HARD` | `opus` | Design and escalations |
+| `AP_USE_GRAPH` | `1` | Use a code graph if installed. `0` disables it |
+| `AP_GRAPH_DEPTH` | `2` | How far the blast-radius check traces dependents |
 
 `AP_FULL_SUITE` is the one people skip and should not. Per-phase verification catches
 local breakage; only a full run catches phase 3 breaking phase 1, and that is the
 failure that turns an overnight run into a morning of archaeology.
+
+## Optional: a code graph
+
+If you install [graphify](https://github.com/Graphify-Labs/graphify), the driver stops
+trusting the plan's `files:` lists and starts checking them, and each phase is told what
+its change can reach. Building the code graph is free and local.
+
+```bash
+uv tool install graphifyy
+graphify install --project      # NOT --strict; see references/code-graph.md
+graphify update . --no-cluster
+```
+
+Everything works identically without it. Read `references/code-graph.md` before enabling
+strict mode, which is actively wrong for unattended runs.
+
+## Testing your changes
+
+```bash
+./scripts/selftest.sh
+```
+
+Runs the whole protocol against a throwaway repo and a stub CLI — no account, no cost.
+Run it after editing anything under `scripts/`.
 
 ## In the morning
 

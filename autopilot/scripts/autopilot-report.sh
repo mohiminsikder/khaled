@@ -15,7 +15,7 @@ echo
 # grep -c prints "0" and exits 1 on no match, so `|| echo 0` would double it.
 count_status() { local c; c=$(grep -c "^status: $1" "$AP/PLAN.md" 2>/dev/null || true); echo "${c:-0}"; }
 printf 'Phases   done:%s  blocked:%s  pending:%s\n' \
-  "$(count_status done)" "$(count_status blocked)" "$(count_status pending)"
+  "$(count_status "done")" "$(count_status "blocked")" "$(count_status "pending")"
 echo
 
 jq -s '

@@ -17,7 +17,7 @@ mkdir -p .claude/hooks scripts .autopilot
 cp "$SKILL_DIR"/assets/hooks/*.sh .claude/hooks/
 cp "$SKILL_DIR"/scripts/notify.sh "$SKILL_DIR"/scripts/preflight.sh \
    "$SKILL_DIR"/scripts/autopilot-run.sh "$SKILL_DIR"/scripts/autopilot-report.sh \
-   "$SKILL_DIR"/scripts/accounts-add.sh scripts/
+   "$SKILL_DIR"/scripts/accounts-add.sh "$SKILL_DIR"/scripts/selftest.sh scripts/
 mkdir -p scripts/lib && cp "$SKILL_DIR"/scripts/lib/*.sh scripts/lib/
 chmod +x .claude/hooks/*.sh scripts/*.sh
 
@@ -67,6 +67,20 @@ if [[ "${1:-}" == "--systemd" ]]; then
   echo "installed ~/.config/systemd/user/autopilot.service"
   echo "  systemctl --user enable --now autopilot.service"
   echo "  sudo loginctl enable-linger $USER"
+fi
+
+if command -v graphify >/dev/null 2>&1; then
+  if [[ -f graphify-out/graph.json ]]; then
+    echo "graphify: code graph found — lane safety will be verified, not assumed"
+  else
+    echo "graphify: installed but no graph yet. Build it (free, local, seconds):"
+    echo "  graphify update . --no-cluster"
+  fi
+  if grep -rqs 'hook-guard.*--strict' .claude/settings.json 2>/dev/null; then
+    echo "  WARNING: graphify strict mode is on. Every autopilot phase is a new session,"
+    echo "  so 'once per session' becomes once per PHASE — a wasted turn every time."
+    echo "  Reinstall without --strict, or set GRAPHIFY_HOOK_STRICT=0."
+  fi
 fi
 
 echo

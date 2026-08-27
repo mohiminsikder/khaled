@@ -46,6 +46,10 @@ build_pack() {
       echo
     fi
 
+    # What this change can reach, if a code graph is available. Grep cannot
+    # answer this cheaply; the model would otherwise find out by searching.
+    graph_pack_section "$p" 2>/dev/null || true
+
     echo "## Verify"
     echo '`'"$(phase_field "$p" verify)"'`'
   } > "$out"

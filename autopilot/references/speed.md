@@ -46,10 +46,14 @@ Set `AP_LANES=1` when a run is token-constrained rather than time-constrained. S
 1 also for any plan where you are unsure the `files:` lists are accurate — the recovery
 cost of a bad parallel merge at 3am exceeds what parallelism saved you.
 
-**The plan is the contract.** Parallelism is only as safe as `files:`. A phase that
-touches a file it did not declare is the one plan error this design cannot absorb, which
-is why the protocol asks the model to stop and update `PLAN.md` rather than reach
-outside the list.
+**The plan is the contract — unless you can check it.** Parallelism is only as safe as
+`files:`. A phase that touches a file it did not declare is the one plan error this
+design cannot absorb, which is why the protocol asks the model to stop and update
+`PLAN.md` rather than reach outside the list.
+
+With an optional code graph installed, the driver stops trusting that contract and
+verifies it: if phase A's blast radius reaches a file phase B declares, they are
+serialised however independent the plan claims they are. See `references/code-graph.md`.
 
 ## 2. Context packs — stop paying for rediscovery
 
