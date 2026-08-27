@@ -131,4 +131,38 @@ class Employees {
 		$table = Install::table( 'employees' );
 		$wpdb->update( $table, [ 'status' => 'inactive' ], [ 'id' => $id ] );
 	}
+
+	/**
+	 * C6 — the edit half of the create/edit screen. Deliberately narrower
+	 * than create(): user_id and code are the account's fixed identity, not
+	 * editable here (changing which WP user or code an existing employee
+	 * record points to is a re-hire, not an edit). PIN changes route through
+	 * Pin::set() instead, which already audits unconditionally — duplicating
+	 * that here would either skip the audit or double it.
+	 *
+	 * @return true|\WP_Error
+	 */
+	public static function update( int $id, array $args ) {
+		if ( null === self::get( $id ) ) {
+			return new \WP_Error( 'cntr_employee_not_found', __( 'Employee not found.', 'counter' ), [ 'status' => 404 ] );
+		}
+
+		global $wpdb;
+		$table = Install::table( 'employees' );
+		$wpdb->update(
+			$table,
+			[
+				'designation'     => sanitize_text_field( (string) ( $args['designation'] ?? '' ) ),
+				'location_id'     => (int) ( $args['location_id'] ?? 0 ),
+				'join_date'       => ! empty( $args['join_date'] ) ? (string) $args['join_date'] : null,
+				'starting_salary' => wc_format_decimal( $args['starting_salary'] ?? 0, 4 ),
+				'basic'           => wc_format_decimal( $args['basic'] ?? 0, 4 ),
+				'allowances_json' => isset( $args['allowances'] ) ? wp_json_encode( $args['allowances'] ) : null,
+				'note'            => (string) ( $args['note'] ?? '' ),
+			],
+			[ 'id' => $id ]
+		);
+
+		return true;
+	}
 }

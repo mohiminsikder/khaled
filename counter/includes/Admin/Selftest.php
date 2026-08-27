@@ -183,6 +183,7 @@ class Selftest {
 		$this->test_purchase_screens();
 		$this->test_sales_screen();
 		$this->test_stock_screens();
+		$this->test_roles_screen();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -4025,6 +4026,105 @@ class Selftest {
 			is_wp_error( $deactivate_result ) && 'cntr_location_has_stock' === $deactivate_result->get_error_code(),
 			is_wp_error( $deactivate_result ) ? $deactivate_result->get_error_code() : wp_json_encode( $deactivate_result )
 		);
+	}
+
+	// -- C6: test_roles_screen() -- 5 checks -------------------------------------------
+
+	/**
+	 * Touches a real WP role's live capability set — unlike every other fixture in
+	 * this file, there is no row to delete afterward, so this test restores exactly
+	 * what it changed (the capability grant AND the audit row it wrote) before
+	 * returning, success or failure, rather than leaving a permanent artefact on a
+	 * shared, non-fixture-tagged piece of site state.
+	 */
+	private function test_roles_screen(): void {
+		global $wpdb;
+
+		$role_name = \Counter\Capabilities::ROLE_STOCKKEEPER;
+		$test_cap  = 'cntr_view_margin'; // not one of the stockkeeper's default caps
+		$role      = get_role( $role_name );
+		$before    = $role->has_cap( $test_cap );
+
+		// 1. The matrix reflects the live role — effective_caps() (what the
+		// screen's checkboxes are seeded from) must agree with has_cap()
+		// (what the screen's checkboxes actually render against) for every
+		// capability, on a role nothing has customised yet.
+		$matrix_agrees = true;
+		foreach ( \Counter\Capabilities::all_caps() as $cap ) {
+			if ( in_array( $cap, \Counter\Capabilities::effective_caps( $role_name ), true ) !== $role->has_cap( $cap ) ) {
+				$matrix_agrees = false;
+				break;
+			}
+		}
+		$this->check( 'test_roles_screen: the matrix reflects the live role', $matrix_agrees, wp_json_encode( [ 'role' => $role_name ] ) );
+
+		// 2. A change persists across a request — read the option table
+		// directly (not through any request-local cache) and re-fetch the
+		// role object fresh, rather than trusting the return value of the
+		// call that just made the change.
+		$set_result      = \Counter\Capabilities::set_role_cap( $role_name, $test_cap, true );
+		$options_table   = $wpdb->options;
+		$raw_overrides   = $wpdb->get_var( $wpdb->prepare( "SELECT option_value FROM {$options_table} WHERE option_name = %s", 'cntr_role_overrides' ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $options_table is $wpdb's own property, not user input
+		$decoded_raw     = is_string( $raw_overrides ) ? maybe_unserialize( $raw_overrides ) : null;
+		$in_db           = is_array( $decoded_raw ) && true === ( $decoded_raw[ $role_name ][ $test_cap ] ?? null );
+		$role_fresh      = get_role( $role_name );
+		$this->check(
+			'test_roles_screen: a change persists across a request',
+			! is_wp_error( $set_result ) && $in_db && $role_fresh->has_cap( $test_cap ),
+			wp_json_encode( [ 'in_db' => $in_db, 'live_cap' => $role_fresh->has_cap( $test_cap ) ] )
+		);
+
+		// 3. The Administrator role cannot be edited or deleted.
+		$admin_before  = get_role( 'administrator' )->has_cap( $test_cap );
+		$admin_result  = \Counter\Capabilities::set_role_cap( 'administrator', $test_cap, ! $admin_before );
+		$admin_after   = get_role( 'administrator' );
+		$this->check(
+			'test_roles_screen: the Administrator role cannot be edited or deleted',
+			is_wp_error( $admin_result ) && 'cntr_role_locked' === $admin_result->get_error_code()
+				&& null !== $admin_after && $admin_before === $admin_after->has_cap( $test_cap ),
+			is_wp_error( $admin_result ) ? $admin_result->get_error_code() : wp_json_encode( $admin_result )
+		);
+
+		// 4. cntr_manage_settings cannot be granted from here.
+		$settings_result = \Counter\Capabilities::set_role_cap( $role_name, 'cntr_manage_settings', true );
+		$this->check(
+			'test_roles_screen: cntr_manage_settings cannot be granted from here',
+			is_wp_error( $settings_result ) && 'cntr_role_cap_locked' === $settings_result->get_error_code()
+				&& ! get_role( $role_name )->has_cap( 'cntr_manage_settings' ),
+			is_wp_error( $settings_result ) ? $settings_result->get_error_code() : wp_json_encode( $settings_result )
+		);
+
+		// 5. A change is audited — the check-2 change wrote exactly one
+		// role_cap_change row naming this role and capability.
+		$audit_table = Install::table( 'audit_log' );
+		$audit_row   = $wpdb->get_row(
+			$wpdb->prepare(
+				"SELECT * FROM {$audit_table} WHERE action = %s ORDER BY id DESC LIMIT 1",
+				'role_cap_change'
+			),
+			ARRAY_A
+		);
+		$audit_after = $audit_row ? json_decode( (string) $audit_row['after_json'], true ) : null;
+		$this->check(
+			'test_roles_screen: a change is audited',
+			$audit_row && is_array( $audit_after ) && $role_name === ( $audit_after['role'] ?? null ) && $test_cap === ( $audit_after['cap'] ?? null ) && true === ( $audit_after['granted'] ?? null ),
+			wp_json_encode( $audit_after )
+		);
+
+		// Restore — put the capability back exactly where it started, and
+		// remove the audit rows this test itself wrote (not TAG-actioned, so
+		// cleanup()'s own purge_tagged() would never touch them).
+		\Counter\Capabilities::set_role_cap( $role_name, $test_cap, $before );
+		if ( $audit_row ) {
+			$wpdb->delete( $audit_table, [ 'id' => (int) $audit_row['id'] ] );
+		}
+		$restore_audit = $wpdb->get_results(
+			$wpdb->prepare( "SELECT id FROM {$audit_table} WHERE action = %s AND after_json LIKE %s ORDER BY id DESC LIMIT 1", 'role_cap_change', '%' . $wpdb->esc_like( '"' . $test_cap . '"' ) . '%' ),
+			ARRAY_A
+		);
+		foreach ( $restore_audit as $r ) {
+			$wpdb->delete( $audit_table, [ 'id' => (int) $r['id'] ] );
+		}
 	}
 
 	/**

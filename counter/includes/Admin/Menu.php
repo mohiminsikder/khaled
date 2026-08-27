@@ -46,7 +46,7 @@ class Menu {
 		],
 		'people'      => [
 			'label' => 'People',
-			'slugs' => [ 'counter-attendance', 'counter-leave', 'counter-payroll' ],
+			'slugs' => [ 'counter-employees', 'counter-attendance', 'counter-leave', 'counter-payroll' ],
 		],
 		'money'       => [
 			'label' => 'Money',
@@ -54,7 +54,7 @@ class Menu {
 		],
 		'admin'       => [
 			'label' => 'Admin',
-			'slugs' => [ 'counter-health', 'counter-perf', 'counter-outbox-failures', 'counter-oversell-log', 'counter-labels' ],
+			'slugs' => [ 'counter-roles', 'counter-health', 'counter-perf', 'counter-outbox-failures', 'counter-oversell-log', 'counter-labels' ],
 		],
 	];
 

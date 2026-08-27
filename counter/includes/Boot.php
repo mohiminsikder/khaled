@@ -160,6 +160,8 @@ class Boot {
 		Admin\Screens\Transfers::init();
 		Admin\Screens\Batches::init();
 		Admin\Screens\Stocktake::init();
+		Admin\Screens\Employees::init();
+		Admin\Screens\Roles::init();
 		Cli::init();
 		Pos\Assets::init();
 	}
