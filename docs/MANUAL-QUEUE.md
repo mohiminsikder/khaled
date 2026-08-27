@@ -42,3 +42,10 @@ Format: `- [ ] <task id> — <what to do> — <what proves it>`
       receipt balance, the Receivables debit, and aging
 - [ ] Open a shift with a float, sell through, run the X-report, count the drawer, close, and confirm
       the variance matches a hand count
+
+## From the v0.1.29 audit (docs/AUDIT-0.1.29.md)
+
+- [ ] R1 — flip CASH/BKASH to active, then ring a ৳10 cash sale — proves the till can sell again
+- [ ] R3 — sweep fixture debris from production, after a database backup — proves the dashboard
+      register list shows only real registers
+- [ ] R4 — decide whether testing moves to a staging clone
