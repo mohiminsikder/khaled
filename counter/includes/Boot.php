@@ -155,6 +155,7 @@ class Boot {
 		Admin\Screens\Suppliers::init();
 		Admin\Screens\PurchaseOrders::init();
 		Admin\Screens\Receiving::init();
+		Admin\Screens\Sales::init();
 		Cli::init();
 		Pos\Assets::init();
 	}

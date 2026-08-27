@@ -181,6 +181,7 @@ class Selftest {
 		$this->test_list_template();
 		$this->test_products_screen();
 		$this->test_purchase_screens();
+		$this->test_sales_screen();
 		$this->test_tenders();
 		$this->test_returns();
 		$this->test_shift_zreport();
@@ -3740,6 +3741,139 @@ class Selftest {
 			'test_purchase_screens: a partial receive leaves the PO open',
 			! is_wp_error( $partial_result ) && $po_2_after && 'partial' === $po_2_after['status'],
 			wp_json_encode( [ 'partial_result' => is_wp_error( $partial_result ) ? $partial_result->get_error_message() : $partial_result, 'po_status' => $po_2_after['status'] ?? null ] )
+		);
+	}
+
+	// -- C4: test_sales_screen() -- 4 checks -------------------------------------------
+
+	private function test_sales_screen(): void {
+		global $wpdb;
+
+		// A dedicated, never-reused location — same isolation reasoning
+		// test_rollup()'s own fixture uses: sales_daily is keyed by
+		// day/channel/location, so this test's own "totals match
+		// sales_daily" check can't be muddied by another concurrently-
+		// running test's real same-day sales at the shared default
+		// location.
+		$location_id = \Counter\Stock\Locations::create(
+			[ 'name' => 'Counter Selftest Fixture Sales Screen Location', 'code' => 'CNTR-SS-SALES-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->location_fixture_ids[] = $location_id;
+
+		$register_id = \Counter\Pos\Registers::create(
+			[ 'name' => 'Counter Selftest Fixture Sales Screen Register', 'location_id' => $location_id, 'prefix' => 'ZS' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->register_fixture_ids[] = $register_id;
+		$shift_id = \Counter\Pos\Shifts::open( $register_id, get_current_user_id(), '0.00' );
+
+		$product = new \WC_Product_Simple();
+		$product->set_name( 'Counter Selftest Fixture Sales Screen Product' );
+		$product->set_regular_price( '400.00' );
+		$product->set_manage_stock( true );
+		$product->set_stock_quantity( 0 );
+		$product->update_meta_data( '_cntr_selftest_fixture', self::TAG );
+		$product->save();
+		$this->product_fixture_ids[] = $product->get_id();
+
+		Db::transaction(
+			function () use ( $product, $location_id ) {
+				\Counter\Stock\Ledger::move(
+					[ 'product_id' => $product->get_id(), 'variation_id' => 0, 'location_id' => $location_id, 'qty_delta' => '5', 'reason' => 'opening', 'ref_type' => 'selftest_sales_screen', 'ref_id' => 0 ]
+				);
+			}
+		);
+
+		$order = \Counter\Orders\Builder::build(
+			[ [ 'product' => $product, 'qty' => 1, 'subtotal' => '400.00', 'total' => '400.00' ] ],
+			[ 'register_id' => $register_id, 'shift_id' => $shift_id, 'location_id' => $location_id, 'operator_id' => get_current_user_id(), 'uuid' => wp_generate_uuid4(), 'receipt_no' => 'SELFTEST-SALESSCR-' . substr( wp_generate_password( 8, false ), 0, 8 ) ]
+		);
+		$this->order_fixture_ids[] = $order->get_id();
+		\Counter\Orders\Channel::apply_stock( $order );
+		$order->set_status( 'completed' );
+		$order->save();
+
+		// 1. The default range includes today's sales — the order above was
+		// just created, so it's dated today by construction; teardown
+		// defect #7's own point is that a DIFFERENT default range would
+		// silently exclude it.
+		$default_filters = \Counter\Admin\Screens\Sales::default_filters();
+		$default_filters['location_id'] = $location_id;
+		$rows_default = \Counter\Admin\Screens\Sales::query_orders( $default_filters );
+		$found_today  = false;
+		foreach ( $rows_default as $r ) {
+			if ( $order->get_id() === $r['order_id'] ) {
+				$found_today = true;
+				break;
+			}
+		}
+		$this->check(
+			'test_sales_screen: the default range includes today\'s sales',
+			$found_today,
+			wp_json_encode( array_column( $rows_default, 'order_id' ) )
+		);
+
+		// 2. A filter returning zero rows names the responsible filter — a
+		// location with genuinely no orders at all.
+		$empty_location_id = \Counter\Stock\Locations::create(
+			// varchar(32) for the whole code column — a longer prefix here
+			// silently truncates/refuses under MySQL strict mode (found live:
+			// Locations::create() returned 0, and 0 is also
+			// default_filters()'s own "no filter" sentinel, so explain_empty()
+			// correctly saw nothing to blame — the fixture's code was the
+			// bug, not the function).
+			[ 'name' => 'Counter Selftest Fixture Sales Screen Empty Location', 'code' => 'CNTR-SS-SALES-E-' . substr( wp_generate_password( 6, false ), 0, 6 ), 'status' => 'active' ]
+		);
+		$this->location_fixture_ids[] = $empty_location_id;
+		$blamed = \Counter\Admin\Screens\Sales::explain_empty( [ 'location_id' => $empty_location_id ] );
+		$this->check(
+			'test_sales_screen: a filter returning zero rows names the responsible filter',
+			'location_id' === $blamed,
+			(string) $blamed
+		);
+
+		// 3. Totals match sales_daily — this fixture's own ৳400 sale, at
+		// its own dedicated location, is the ONLY thing contributing to
+		// today's sales_daily row there.
+		$sales_daily_table = Install::table( 'sales_daily' );
+		$today             = wp_date( 'Y-m-d' );
+		$rollup_gross      = (string) $wpdb->get_var(
+			$wpdb->prepare( "SELECT COALESCE(SUM(gross),0) FROM {$sales_daily_table} WHERE day = %s AND location_id = %d", $today, $location_id )
+		);
+		$screen_total = '0.0000';
+		foreach ( $rows_default as $r ) {
+			$screen_total = bcadd( $screen_total, $r['total'], 4 );
+		}
+		$this->check(
+			'test_sales_screen: totals match sales_daily',
+			0 === bccomp( $rollup_gross, $screen_total, 4 ) && 0 === bccomp( $rollup_gross, '400.0000', 4 ),
+			wp_json_encode( [ 'rollup_gross' => $rollup_gross, 'screen_total' => $screen_total ] )
+		);
+
+		// 4. Row actions honour their capabilities — Sell return needs
+		// cntr_refund; a plain subscriber (WooCommerce's own default
+		// customer role, no cntr_* capability at all) must never see it.
+		$row = \Counter\Admin\Screens\Sales::row_from_order( $order );
+
+		$original_user_id_ss = get_current_user_id();
+		$admins_ss              = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		if ( ! empty( $admins_ss ) ) {
+			wp_set_current_user( (int) $admins_ss[0] );
+		}
+		$actions_with_refund = \Counter\Admin\Screens\Sales::row_actions_for( $row );
+
+		$subscriber_email_ss = 'cntr-selftest-sales-' . wp_generate_password( 8, false ) . '@example.invalid';
+		$subscriber_id_ss    = wc_create_new_customer( $subscriber_email_ss, '', wp_generate_password( 16 ) );
+		if ( ! is_wp_error( $subscriber_id_ss ) ) {
+			$this->customer_fixture_ids[] = $subscriber_id_ss;
+			wp_set_current_user( $subscriber_id_ss );
+		}
+		$actions_without_refund = \Counter\Admin\Screens\Sales::row_actions_for( $row );
+		wp_set_current_user( $original_user_id_ss );
+
+		$this->check(
+			'test_sales_screen: row actions honour their capabilities',
+			array_key_exists( 'sell_return', $actions_with_refund ) && ! array_key_exists( 'sell_return', $actions_without_refund ),
+			wp_json_encode( [ 'with' => array_keys( $actions_with_refund ), 'without' => array_keys( $actions_without_refund ) ] )
 		);
 	}
 

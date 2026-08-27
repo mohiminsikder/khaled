@@ -24,13 +24,19 @@ defined( 'ABSPATH' ) || exit;
  */
 class Templates {
 
-	const TYPES = [ 'receipt-79', 'receipt-58', 'invoice-a4', 'challan-63' ];
+	// C4 — 'packing-slip-a4'/'delivery-note-a4' added for the All Sales
+	// screen's own row actions of the same name: the same generic
+	// token-substitution engine every other document type already uses,
+	// never a second templating mechanism invented just for these two.
+	const TYPES = [ 'receipt-79', 'receipt-58', 'invoice-a4', 'challan-63', 'packing-slip-a4', 'delivery-note-a4' ];
 
 	const DEFAULT_WIDTH_MM = [
-		'receipt-79' => 79,
-		'receipt-58' => 58,
-		'invoice-a4' => 210,
-		'challan-63' => 210,
+		'receipt-79'        => 79,
+		'receipt-58'        => 58,
+		'invoice-a4'        => 210,
+		'challan-63'        => 210,
+		'packing-slip-a4'   => 210,
+		'delivery-note-a4'  => 210,
 	];
 
 	const ALLOWED_TOKENS = [
@@ -47,10 +53,12 @@ class Templates {
 	// The tokens a template of this type is refused at save time without —
 	// the ones the type cannot be meaningfully correct without.
 	const REQUIRED_TOKENS = [
-		'receipt-79' => [ 'total' ],
-		'receipt-58' => [ 'total' ],
-		'invoice-a4' => [ 'total', 'customer_name' ],
-		'challan-63' => [ 'serial', 'taxable_value', 'vat_amount', 'total', 'buyer_bin' ],
+		'receipt-79'       => [ 'total' ],
+		'receipt-58'       => [ 'total' ],
+		'invoice-a4'       => [ 'total', 'customer_name' ],
+		'challan-63'       => [ 'serial', 'taxable_value', 'vat_amount', 'total', 'buyer_bin' ],
+		'packing-slip-a4'  => [ 'items_html' ], // no prices — what a warehouse hand checks the delivery against, never billing detail
+		'delivery-note-a4' => [ 'items_html', 'customer_name' ],
 	];
 
 	public static function get( int $id ): ?array {

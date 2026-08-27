@@ -50,7 +50,7 @@ class Menu {
 		],
 		'money'       => [
 			'label' => 'Money',
-			'slugs' => [ 'counter-receivables', 'counter-accounts', 'counter-expenses', 'counter-vat-exports', 'counter-reports' ],
+			'slugs' => [ 'counter-sales', 'counter-receivables', 'counter-accounts', 'counter-expenses', 'counter-vat-exports', 'counter-reports' ],
 		],
 		'admin'       => [
 			'label' => 'Admin',
