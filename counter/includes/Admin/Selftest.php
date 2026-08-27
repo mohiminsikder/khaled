@@ -222,6 +222,7 @@ class Selftest {
 		$this->test_trending();
 		$this->test_register_report();
 		$this->test_cash_flow();
+		$this->test_activity_log();
 		$this->test_reports_channel();
 		$this->test_dashboard();
 		$this->test_pos_entry_points();
@@ -8853,6 +8854,84 @@ class Selftest {
 			null !== $narrow_row && null !== $wide_row && 0 === bccomp( $narrow_row['account_balance'], $wide_row['account_balance'], 4 ),
 			wp_json_encode( [ 'narrow_balance' => $narrow_row['account_balance'] ?? null, 'wide_balance' => $wide_row['account_balance'] ?? null ] )
 		);
+	}
+
+	// -- D5: test_activity_log() -- 3 checks -------------------------------------------
+
+	/**
+	 * No feature in this codebase logs a literal action named "discount"
+	 * yet (order discounts, B4, do not audit themselves) — this writes one
+	 * real row itself, the same "prove the reader against a genuine write"
+	 * shape as every other check here, and deletes it again by exact id
+	 * afterward (Audit::query() has no fixture-tag concept of its own to
+	 * clean up through).
+	 */
+	private function test_activity_log(): void {
+		global $wpdb;
+		$audit_table = Install::table( 'audit_log' );
+
+		$admins_al = get_users( [ 'role' => 'administrator', 'number' => 1, 'fields' => 'ID' ] );
+		$admin_id  = ! empty( $admins_al ) ? (int) $admins_al[0] : 0;
+		if ( $admin_id ) {
+			wp_set_current_user( $admin_id );
+		}
+
+		$fresh_id = 900001; // a synthetic object_id, never a real order — this test only ever reads its own two rows back by that id
+		Audit::log( 'discount_line', 'order', $fresh_id, [ 'discount' => '0.00' ], [ 'discount' => '10.00' ], $admin_id );
+		$fresh_row_id = (int) $wpdb->insert_id;
+
+		// A second row, backdated well outside any range check 3 will use,
+		// to prove the range filter actually excludes something real.
+		Audit::log( 'discount_line', 'order', $fresh_id, [ 'discount' => '0.00' ], [ 'discount' => '5.00' ], $admin_id );
+		$old_row_id = (int) $wpdb->insert_id;
+		$wpdb->update( $audit_table, [ 'created_at' => '2000-01-01 00:00:00' ], [ 'id' => $old_row_id ] );
+
+		// 1. A discount write appears.
+		$result = Audit::query( [ 'action' => 'discount_line', 'object_type' => 'order' ] );
+		$found  = null;
+		foreach ( $result['rows'] as $r ) {
+			if ( $r['id'] === $fresh_row_id ) {
+				$found = $r;
+				break;
+			}
+		}
+		$this->check(
+			'test_activity_log: a discount write appears',
+			null !== $found && 'order' === $found['object_type'] && $fresh_id === $found['object_id'] && '10.00' === ( $found['after']['discount'] ?? null ),
+			wp_json_encode( [ 'found' => null !== $found, 'after' => $found['after'] ?? null ] )
+		);
+
+		// 2. It requires cntr_view_audit.
+		$low_email = 'cntr-selftest-activitylog-low-' . wp_generate_password( 10, false ) . '@example.invalid';
+		$low_id    = wc_create_new_customer( $low_email, '', wp_generate_password( 16 ) );
+		$can_low   = null;
+		if ( ! is_wp_error( $low_id ) ) {
+			( new \WP_User( $low_id ) )->set_role( \Counter\Capabilities::ROLE_CASHIER );
+			wp_set_current_user( (int) $low_id );
+			$can_low = current_user_can( 'cntr_view_audit' );
+			if ( $admin_id ) {
+				wp_set_current_user( $admin_id );
+			}
+			wp_delete_user( (int) $low_id );
+		}
+		$this->check(
+			'test_activity_log: it requires cntr_view_audit',
+			! is_wp_error( $low_id ) && false === $can_low && current_user_can( 'cntr_view_audit' ),
+			wp_json_encode( [ 'low_user_created' => ! is_wp_error( $low_id ), 'cashier_can_view_audit' => $can_low ] )
+		);
+
+		// 3. The range filter is honoured — a range covering only "today"
+		// finds the fresh row and excludes the row backdated to 2000.
+		$today_range = Audit::query( [ 'action' => 'discount_line', 'object_type' => 'order', 'from' => gmdate( 'Y-m-d' ), 'to' => gmdate( 'Y-m-d' ) ] );
+		$ids_in_range = array_column( $today_range['rows'], 'id' );
+		$this->check(
+			'test_activity_log: the range filter is honoured',
+			in_array( $fresh_row_id, $ids_in_range, true ) && ! in_array( $old_row_id, $ids_in_range, true ),
+			wp_json_encode( [ 'ids_in_range' => $ids_in_range, 'fresh_row_id' => $fresh_row_id, 'old_row_id' => $old_row_id ] )
+		);
+
+		$wpdb->delete( $audit_table, [ 'id' => $fresh_row_id ] );
+		$wpdb->delete( $audit_table, [ 'id' => $old_row_id ] );
 	}
 
 	// -- P5.2: test_reports_channel() -- 6 checks ----------------------------------------
